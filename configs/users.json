@@ -4,7 +4,19 @@
       "username": "greeter",
       "password": "greeter",
       "sub": {
-        "allow": ["_INBOX.>", "greet.*"],
+        "allow": [
+          "_INBOX.>",
+          "greet.*",
+          "$SRV.INFO",
+          "$SRV.INFO.EchoService",
+          "$SRV.INFO.EchoService.>",
+          "$SRV.PING",
+          "$SRV.PING.EchoService",
+          "$SRV.PING.EchoService.>",
+          "$SRV.STATS",
+          "$SRV.STATS.EchoService",
+          "$SRV.STATS.EchoService.>"
+        ],
         "deny": []
       },
       "pub": {
@@ -16,7 +28,7 @@
       "username": "alice",
       "password": "alice",
       "sub": {
-        "allow": ["_INBOX.>", "greet.alice"],
+        "allow": ["_INBOX.>", "greet.alice", "rply"],
         "deny": []
       },
       "pub": {
@@ -28,7 +40,7 @@
       "username": "joe",
       "password": "joe",
       "sub": {
-        "allow": ["_INBOX.>", "greet.joe"],
+        "allow": ["_INBOX.>", "greet.joe", "rply"],
         "deny": []
       },
       "pub": {
