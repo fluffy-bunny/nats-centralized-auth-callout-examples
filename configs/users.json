@@ -20,7 +20,7 @@
         "deny": []
       },
       "pub": {
-        "allow": [],
+        "allow": ["greet.alice"],
         "deny": []
       }
     },
@@ -32,7 +32,7 @@
         "deny": []
       },
       "pub": {
-        "allow": [],
+        "allow": ["greet.joe"],
         "deny": []
       }
     }

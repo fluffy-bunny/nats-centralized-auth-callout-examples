@@ -24,5 +24,12 @@ go build .\cmd\cli\.
 ```
 
 ```shell
-.\cli.exe clients request_reply
+.\cli.exe clients request_reply --nats.user joe --nats.pass joe
 ```
+or
+
+```shell
+.\cli.exe clients request_reply --nats.user alice --nats.pass alice
+```
+
+You can see from the [users](configs/users.json) who has the right to publish and handle the greet requests.
