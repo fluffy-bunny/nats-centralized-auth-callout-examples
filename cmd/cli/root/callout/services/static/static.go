@@ -19,14 +19,15 @@ import (
 	nkeys "github.com/nats-io/nkeys"
 	zerolog "github.com/rs/zerolog"
 	cobra "github.com/spf13/cobra"
-	"github.com/spf13/viper"
+	viper "github.com/spf13/viper"
 	codes "google.golang.org/grpc/codes"
 )
 
 const use = "static"
 
 var (
-	appInputs = shared.NewInputs()
+	appInputs        = shared.NewInputs()
+	users     string = "./configs/users.json"
 )
 
 // Init command
@@ -60,6 +61,16 @@ func Init(parentCmd *cobra.Command) {
 			akpPublickKey, _ := akp.PublicKey()
 			log.Info().Str("issuer", akpPublickKey).Msg("issuer")
 
+			if !shared.FileExists(users) {
+				log.Error().Str("file", users).Msg("file does not exist")
+				return status.Error(codes.Internal, "file does not exist")
+			}
+			usersData, err := shared.LoadUsersData(users)
+			if err != nil {
+				log.Error().Err(err).Msg("error loading users data")
+				return status.Error(codes.Internal, "error loading users data")
+			}
+			printer.Println(cobra_utils.Blue, fluffycore_utils.PrettyJSON(usersData))
 			// Parse the xkey seed if present.
 			var curveKeyPair nkeys.KeyPair
 			if fluffycore_utils.IsNotEmptyOrNil(appInputs.XKeySeed) {
@@ -78,12 +89,38 @@ func Init(parentCmd *cobra.Command) {
 				// peek at the req for information - for brevity
 				// in the example, we simply allow them in
 				log.Info().Str("user", req.UserNkey).Msg("authorizing")
+
+				username := req.ConnectOptions.Username
+				password := req.ConnectOptions.Password
+
+				printer.Printf(cobra_utils.Blue, "username: %s, password: %s\n", username, password)
+				authenticated := false
+				var user *shared.User
+
+				for _, item := range usersData.Users {
+					if item.Username == username && item.Password == password {
+						authenticated = true
+						user = &item
+						break
+					}
+				}
+				if !authenticated {
+					printer.Printf(cobra_utils.Red, "UNAUTHORIZED: username: %s, password: %s\n", username, password)
+					return "", status.Error(codes.PermissionDenied, "permission denied")
+				}
+				printer.Println(cobra_utils.Blue, fluffycore_utils.PrettyJSON(user))
+
 				// use the server specified user nkey
 				uc := jwt.NewUserClaims(req.UserNkey)
 				// put the user in the global account
 				uc.Audience = "SVC"
 				// add whatever permissions you need
-				uc.Sub.Allow.Add(">")
+				uc.Sub.Allow.Add(user.Sub.Allow...)
+				uc.Pub.Allow.Add(user.Pub.Allow...)
+
+				uc.Sub.Deny.Add(user.Sub.Deny...)
+				uc.Pub.Deny.Add(user.Pub.Deny...)
+
 				// perhaps add an expiration to the JWT
 				uc.Expires = time.Now().Unix() + 90
 				return uc.Encode(akp)
@@ -112,7 +149,13 @@ func Init(parentCmd *cobra.Command) {
 	command.Flags().StringVar(&appInputs.IssuerSeed, flagName, defaultS, fmt.Sprintf("[required] i.e. --%s=%s", flagName, defaultS))
 	viper.BindPFlag(flagName, command.PersistentFlags().Lookup(flagName))
 
+	flagName = "users.file"
+	defaultS = users
+	command.Flags().StringVar(&users, flagName, defaultS, fmt.Sprintf("[required] i.e. --%s=%s", flagName, defaultS))
+	viper.BindPFlag(flagName, command.PersistentFlags().Lookup(flagName))
+
 	callout_services_static_and_dynamic.Init(command)
+
 	parentCmd.AddCommand(command)
 
 }

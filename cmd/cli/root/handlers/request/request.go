@@ -67,8 +67,8 @@ func Init(parentCmd *cobra.Command) {
 			return nil
 		},
 	}
-	appInputs.NatsUser = "alice"
-	appInputs.NatsPass = "alice"
+	appInputs.NatsUser = "greeter"
+	appInputs.NatsPass = "greeter"
 
 	shared.InitCommonConnFlags(appInputs, command)
 

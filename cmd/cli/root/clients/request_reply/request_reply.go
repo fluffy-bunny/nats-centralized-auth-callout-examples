@@ -1,7 +1,6 @@
 package request_reply
 
 import (
-	"fmt"
 	cobra_utils "natsauth/internal/cobra_utils"
 	shared "natsauth/internal/shared"
 	"time"
@@ -43,26 +42,33 @@ func Init(parentCmd *cobra.Command) {
 			// We simply pass a nil body since that is being used right now. In addition,
 			// we need to specify a timeout since with a request we are _waiting_ for the
 			// reply and we likely don't want to wait forever.
-			rep, err := nc.Request("greet.joe", nil, time.Second)
-			if err != nil {
-				log.Error().Err(err).Msg("failed to get response")
-				return err
-			}
-			fmt.Println(string(rep.Data))
 
-			rep, err = nc.Request("greet.alice", nil, time.Second)
+			subject := "greet.joe"
+			subLog := log.With().Str("subject", subject).Logger()
+			rep, err := nc.Request(subject, nil, time.Second)
 			if err != nil {
-				log.Error().Err(err).Msg("failed to get response")
-				return err
+				subLog.Error().Err(err).Msg("failed to get response")
+			} else {
+				printer.Println(cobra_utils.Blue, string(rep.Data))
 			}
-			fmt.Println(string(rep.Data))
 
-			rep, err = nc.Request("greet_junk.joe", nil, time.Second)
+			subject = "greet.alice"
+			subLog = log.With().Str("subject", subject).Logger()
+			rep, err = nc.Request(subject, nil, time.Second)
 			if err != nil {
-				log.Error().Err(err).Msg("failed to get response")
-				return err
+				subLog.Error().Err(err).Msg("failed to get response")
+			} else {
+				printer.Println(cobra_utils.Blue, string(rep.Data))
 			}
-			fmt.Println(string(rep.Data))
+
+			subject = "greet_junk.alice"
+			subLog = log.With().Str("subject", subject).Logger()
+			rep, err = nc.Request(subject, nil, time.Second)
+			if err != nil {
+				subLog.Error().Err(err).Msg("failed to get response")
+			} else {
+				printer.Println(cobra_utils.Blue, string(rep.Data))
+			}
 
 			return nil
 		},

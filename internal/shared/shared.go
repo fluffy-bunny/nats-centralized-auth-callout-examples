@@ -2,6 +2,7 @@ package shared
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 
@@ -12,6 +13,22 @@ import (
 	cobra "github.com/spf13/cobra"
 	viper "github.com/spf13/viper"
 	codes "google.golang.org/grpc/codes"
+)
+
+type (
+	Permissions struct {
+		Allow []string `json:"allow"`
+		Deny  []string `json:"deny"`
+	}
+	User struct {
+		Username string      `json:"username"`
+		Password string      `json:"password"`
+		Sub      Permissions `json:"sub"`
+		Pub      Permissions `json:"pub"`
+	}
+	Users struct {
+		Users []User `json:"users"`
+	}
 )
 
 var _ctx context.Context
@@ -98,4 +115,21 @@ func (appInputs *Inputs) MakeConn(ctx context.Context) (*nats.Conn, error) {
 func FileExists(filename string) bool {
 	_, err := os.Stat(filename)
 	return !os.IsNotExist(err)
+}
+
+func LoadFile(filename string) string {
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		return ""
+	}
+	return string(data)
+}
+func LoadUsersData(filename string) (*Users, error) {
+	if !FileExists(filename) {
+		return nil, fmt.Errorf("file does not exist: %s", filename)
+	}
+	data := LoadFile(filename)
+	usersData := &Users{}
+	err := json.Unmarshal([]byte(data), usersData)
+	return usersData, err
 }
