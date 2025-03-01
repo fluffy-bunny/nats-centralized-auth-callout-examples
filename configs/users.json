@@ -1,0 +1,40 @@
+{
+  "users": [
+    {
+      "username": "greeter",
+      "password": "greeter",
+      "sub": {
+        "allow": ["_INBOX.>", "greet.*"],
+        "deny": []
+      },
+      "pub": {
+        "allow": [],
+        "deny": []
+      }
+    },
+    {
+      "username": "alice",
+      "password": "alice",
+      "sub": {
+        "allow": ["_INBOX.>", "greet.alice"],
+        "deny": []
+      },
+      "pub": {
+        "allow": ["greet.alice"],
+        "deny": []
+      }
+    },
+    {
+      "username": "joe",
+      "password": "joe",
+      "sub": {
+        "allow": ["_INBOX.>", "greet.joe"],
+        "deny": []
+      },
+      "pub": {
+        "allow": ["greet.joe"],
+        "deny": []
+      }
+    }
+  ]
+}
