@@ -9,7 +9,6 @@ require (
 	github.com/nats-io/jwt/v2 v2.7.3
 	github.com/nats-io/nats.go v1.39.1
 	github.com/nats-io/nkeys v0.4.10
-	github.com/reugn/async v0.9.0
 	github.com/rs/zerolog v1.33.0
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.19.0
