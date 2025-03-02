@@ -1,14 +1,16 @@
 package micro
 
 import (
+	"context"
 	"fmt"
+	client_micro_request "natsauth/cmd/cli/root/clients/micro/request"
 	cobra_utils "natsauth/internal/cobra_utils"
 	shared "natsauth/internal/shared"
 	"time"
 
 	zerolog "github.com/rs/zerolog"
 	cobra "github.com/spf13/cobra"
-	"github.com/spf13/viper"
+	viper "github.com/spf13/viper"
 )
 
 const use = "micro"
@@ -41,59 +43,44 @@ func Init(parentCmd *cobra.Command) {
 
 			printer.Infof("%s connected to %s", appInputs.NatsUser, nc.ConnectedUrl())
 
-			sub, _ := nc.SubscribeSync("rply")
-			log.Info().Msgf("Sending request: %s", requestData)
+			doSubRequest := func(ctx context.Context, subject string) error {
+				log := zerolog.Ctx(ctx).With().Str("subject", subject).Logger()
+				subReply := fmt.Sprintf("%s.reply", subject)
+				log = log.With().Str("subReply", subReply).Logger()
+				srd := fmt.Sprintf("%s: %s", subject, requestData)
+
+				log.Info().Msgf("Sending request: %s", srd)
+				sub, err := nc.SubscribeSync(subReply)
+				if err != nil {
+					log.Error().Err(err).Msg("failed to subscribe")
+					return err
+				}
+				err = nc.PublishRequest(subject, subReply, []byte(srd))
+				if err != nil {
+					log.Error().Err(err).Msg("failed to get response")
+					return err
+				} else {
+					for start := time.Now(); time.Since(start) < 5*time.Second; {
+						msg, err := sub.NextMsg(1 * time.Second)
+						if err != nil {
+							log.Error().Err(err).Msg("failed to get response")
+							break
+						}
+						printer.Printf(cobra_utils.Blue, "Received: %s\n", string(msg.Data))
+					}
+				}
+
+				return nil
+			}
 
 			subject := "greet.joe"
-			subLog := log.With().Str("subject", subject).Logger()
-			srd := fmt.Sprintf("greet.joe: %s", requestData)
-			err = nc.PublishRequest(subject, "rply", []byte(srd))
-			if err != nil {
-				subLog.Error().Err(err).Msg("failed to get response")
-			} else {
-				for start := time.Now(); time.Since(start) < 5*time.Second; {
-					msg, err := sub.NextMsg(1 * time.Second)
-					if err != nil {
-						subLog.Error().Err(err).Msg("failed to get response")
-						break
-					}
-					printer.Printf(cobra_utils.Blue, "Received: %s\n", string(msg.Data))
-				}
-			}
+			doSubRequest(ctx, subject)
 
 			subject = "greet.alice"
-			subLog = log.With().Str("subject", subject).Logger()
-			srd = fmt.Sprintf("greet.alice: %s", requestData)
-			err = nc.PublishRequest(subject, "rply", []byte(srd))
-			if err != nil {
-				subLog.Error().Err(err).Msg("failed to get response")
-			} else {
-				for start := time.Now(); time.Since(start) < 5*time.Second; {
-					msg, err := sub.NextMsg(1 * time.Second)
-					if err != nil {
-						subLog.Error().Err(err).Msg("failed to get response")
-						break
-					}
-					printer.Printf(cobra_utils.Blue, "Received: %s\n", string(msg.Data))
-				}
-			}
+			doSubRequest(ctx, subject)
 
 			subject = "greet_junk.alice"
-			subLog = log.With().Str("subject", subject).Logger()
-			srd = fmt.Sprintf("greet_junk.alice: %s", requestData)
-			err = nc.PublishRequest(subject, "rply", []byte(srd))
-			if err != nil {
-				subLog.Error().Err(err).Msg("failed to get response")
-			} else {
-				for start := time.Now(); time.Since(start) < 5*time.Second; {
-					msg, err := sub.NextMsg(1 * time.Second)
-					if err != nil {
-						subLog.Error().Err(err).Msg("failed to get response")
-						break
-					}
-					printer.Printf(cobra_utils.Blue, "Received: %s\n", string(msg.Data))
-				}
-			}
+			doSubRequest(ctx, subject)
 
 			return nil
 		},
@@ -107,6 +94,8 @@ func Init(parentCmd *cobra.Command) {
 	defaultS := requestData
 	command.Flags().StringVar(&requestData, flagName, defaultS, fmt.Sprintf("[required] i.e. --%s=%s", flagName, defaultS))
 	viper.BindPFlag(flagName, command.PersistentFlags().Lookup(flagName))
+
+	client_micro_request.Init(command)
 
 	parentCmd.AddCommand(command)
 

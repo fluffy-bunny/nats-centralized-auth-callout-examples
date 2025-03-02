@@ -28,11 +28,17 @@
       "username": "alice",
       "password": "alice",
       "sub": {
-        "allow": ["_INBOX.>", "greet.alice", "rply"],
+        "allow": [
+          "_INBOX.>",
+          "greet.alice",
+          "greet.alice.reply"
+        ],
         "deny": []
       },
       "pub": {
-        "allow": ["greet.alice"],
+        "allow": [
+          "greet.alice"
+        ],
         "deny": []
       }
     },
@@ -40,11 +46,17 @@
       "username": "joe",
       "password": "joe",
       "sub": {
-        "allow": ["_INBOX.>", "greet.joe", "rply"],
+        "allow": [
+          "_INBOX.>",
+          "greet.joe",
+          "greet.joe.reply"
+        ],
         "deny": []
       },
       "pub": {
-        "allow": ["greet.joe"],
+        "allow": [
+          "greet.joe"
+        ],
         "deny": []
       }
     }
