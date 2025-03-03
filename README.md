@@ -42,8 +42,12 @@ You can see from the [users](configs/users.json) who has the right to publish an
 ## Jetstream
 
 ```shell
-.\cli.exe jetstream create          --nats.user god --nats.pass god --js.name  willow_ugagent --js.subject willow.ugagent.*
-.\cli.exe jetstream info            --nats.user god --nats.pass god --js.name  willow_ugagent
-.\cli.exe jetstream consumer add    --nats.user god --nats.pass god --js.name  willow_ugagent --consumer.name wa1
-.\cli.exe jetstream consumer info   --nats.user god --nats.pass god --js.name  willow_ugagent --consumer.name wa1
+
+.\cli.exe jetstream create          --nats.user god --nats.pass god --js.name  webhooks_inbound --js.subject webhooks.inbound --js.subject webhooks.inbound.>
+.\cli.exe jetstream info            --nats.user god --nats.pass god --js.name  webhooks_inbound
+
+.\cli.exe jetstream consumer add    --nats.user god --nats.pass god --js.name  webhooks_inbound --consumer.name wa1
+.\cli.exe jetstream consumer info   --nats.user god --nats.pass god --js.name  webhooks_inbound --consumer.name wa1
+
+.\cli.exe jetstream publish         --nats.user god --nats.pass god --subject webhooks.inbound.github --duration 10s --pause.duration 10ms
 ```
