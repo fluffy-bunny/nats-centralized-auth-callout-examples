@@ -2,8 +2,6 @@ package create
 
 import (
 	"fmt"
-	clients_micro "natsauth/cmd/cli/root/clients/micro"
-	clients_request_reply "natsauth/cmd/cli/root/clients/request_reply"
 	cobra_utils "natsauth/internal/cobra_utils"
 	shared "natsauth/internal/shared"
 
@@ -16,16 +14,9 @@ import (
 
 const use = "create"
 
-type (
-	commandInputs struct {
-		name     string
-		subjects []string
-	}
-)
-
 var (
-	appInputs        = shared.NewInputs()
-	appCommandInputs = &commandInputs{}
+	appInputs          = shared.NewInputs()
+	appJetStreamConfig = shared.NewJetStreamConfig()
 )
 
 // Init command
@@ -57,11 +48,7 @@ func Init(parentCmd *cobra.Command) {
 				return err
 			}
 
-			sc := shared.NewJetStreamConfig(
-				shared.WithStreamName(appCommandInputs.name),
-				shared.WithStreamSubject(appCommandInputs.subjects...),
-			)
-			stream, err := js.CreateOrUpdateStream(ctx, *sc)
+			stream, err := js.CreateOrUpdateStream(ctx, *appJetStreamConfig)
 			if err != nil {
 
 				printer.Errorf("Error creating stream: %v", err)
@@ -83,17 +70,14 @@ func Init(parentCmd *cobra.Command) {
 	shared.InitCommonConnFlags(appInputs, command)
 
 	flagName := "js.name"
-	defaultS := appCommandInputs.name
-	command.Flags().StringVar(&appCommandInputs.name, flagName, defaultS, fmt.Sprintf("[required] i.e. --%s=%s", flagName, defaultS))
+	defaultS := appJetStreamConfig.Name
+	command.Flags().StringVar(&appJetStreamConfig.Name, flagName, defaultS, fmt.Sprintf("[required] i.e. --%s=%s", flagName, defaultS))
 	viper.BindPFlag(flagName, command.PersistentFlags().Lookup(flagName))
 
 	flagName = "js.subject"
 	defaultS = ""
-	command.Flags().StringSliceVar(&appCommandInputs.subjects, flagName, []string{defaultS}, fmt.Sprintf("[required] i.e. --%s=%s", flagName, defaultS))
+	command.Flags().StringSliceVar(&appJetStreamConfig.Subjects, flagName, []string{defaultS}, fmt.Sprintf("[required] i.e. --%s=%s", flagName, defaultS))
 	viper.BindPFlag(flagName, command.PersistentFlags().Lookup(flagName))
-
-	clients_request_reply.Init(command)
-	clients_micro.Init(command)
 
 	parentCmd.AddCommand(command)
 

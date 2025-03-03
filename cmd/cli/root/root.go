@@ -12,6 +12,7 @@ import (
 
 	clients "natsauth/cmd/cli/root/clients"
 	handlers "natsauth/cmd/cli/root/handlers"
+	jetstream "natsauth/cmd/cli/root/jetstream"
 
 	zerolog "github.com/rs/zerolog"
 	cobra "github.com/spf13/cobra"
@@ -59,5 +60,6 @@ func InitRootCmd() *cobra.Command {
 	callout.Init(command)
 	handlers.Init(command)
 	clients.Init(command)
+	jetstream.Init(command)
 	return command
 }
