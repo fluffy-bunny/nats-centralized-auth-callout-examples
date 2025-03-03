@@ -61,17 +61,30 @@ func Init(parentCmd *cobra.Command) {
 
 			app := cview.NewApplication()
 			defer app.HandlePanic()
+			app.EnableMouse(true)
 
-			textView := cview.NewTextView()
-			textView.SetDynamicColors(true)
-			textView.SetRegions(true)
-			textView.SetWordWrap(true)
-			textView.SetChangedFunc(func() {
-				app.Draw()
-			})
-			textView.SetBorder(true)
+			newPrimitive := func(text string) *cview.TextView {
+				textView := cview.NewTextView()
+				textView.SetDynamicColors(true)
+				textView.SetRegions(true)
+				textView.SetWordWrap(true)
+				textView.SetChangedFunc(func() {
+					app.Draw()
+				})
+				fmt.Fprintf(textView, "%s\n", text)
+				return textView
+			}
+			main := newPrimitive("Main content")
 
-			app.SetRoot(textView, true)
+			grid := cview.NewGrid()
+			grid.SetRows(3, 0, 3)
+			grid.SetColumns(30, 0, 30)
+			grid.SetBorders(true)
+			grid.AddItem(newPrimitive("Header"), 0, 0, 1, 3, 0, 0, false)
+			grid.AddItem(newPrimitive("Footer"), 2, 0, 1, 3, 0, 0, false)
+			grid.AddItem(main, 1, 0, 1, 3, 0, 0, false)
+
+			app.SetRoot(grid, true)
 
 			futureApp := fluffycore_async.ExecuteWithPromiseAsync(func(promise async.Promise[*fluffycore_async.AsyncResponse]) {
 				var err error
@@ -140,17 +153,17 @@ func Init(parentCmd *cobra.Command) {
 						mm = strings.ReplaceAll(mm, "$timestamp", timestamp)
 						mm = strings.ReplaceAll(mm, "$sequence", fmt.Sprintf("%d", sequence))
 
-						textView.Clear()
+						main.Clear()
 						_, err = js.Publish(ctx, appCommandInputs.Subject, []byte(mm),
 							nats_jetstream.WithRetryWait(time.Second*5),
 							nats_jetstream.WithRetryAttempts(100))
 
 						if err != nil {
-							fmt.Fprint(textView, err.Error())
+							fmt.Fprint(main, err.Error())
 							quit = true
 							break
 						}
-						fmt.Fprintf(textView, "%s ", mm)
+						fmt.Fprintf(main, "%s ", mm)
 
 						sequence++
 					}
