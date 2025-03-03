@@ -150,7 +150,7 @@ func WithStreamSubject(subjects ...string) StreamConfigOption {
 		c.Subjects = append(c.Subjects, subjects...)
 	}
 }
-func NewJetStreamConfig(opts ...StreamConfigOption) *nats_jetstream.StreamConfig {
+func NewStreamConfig(opts ...StreamConfigOption) *nats_jetstream.StreamConfig {
 	sc := &nats_jetstream.StreamConfig{
 		Name:              "",
 		Subjects:          []string{},

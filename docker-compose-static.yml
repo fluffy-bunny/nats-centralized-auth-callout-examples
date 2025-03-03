@@ -2,11 +2,12 @@ services:
   # Internal NATS server.
   server:
     image: nats:latest
-    command: -n internal-server
+    command:
+      -n internal-server
       -m 8222
       -js
       -c server.conf
-      --DVV
+      #--DVV
     environment:
       - SERVER_NAME=nats
     volumes:

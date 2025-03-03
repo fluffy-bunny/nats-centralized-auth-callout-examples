@@ -17,7 +17,7 @@ const use = "info"
 
 var (
 	appInputs          = shared.NewInputs()
-	appJetStreamConfig = shared.NewJetStreamConfig()
+	appJetStreamConfig = shared.NewStreamConfig()
 
 	appConsumerConfig = nats_jetstream.ConsumerConfig{
 		Name:           "",

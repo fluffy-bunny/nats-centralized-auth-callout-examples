@@ -1,6 +1,7 @@
 package jetstream
 
 import (
+	clients_jetstream_consume "natsauth/cmd/cli/root/jetstream/consume"
 	clients_jetstream_consumer "natsauth/cmd/cli/root/jetstream/consumer"
 	clients_jetstream_create "natsauth/cmd/cli/root/jetstream/create"
 	clients_jetstream_info "natsauth/cmd/cli/root/jetstream/info"
@@ -24,6 +25,7 @@ func Init(parentCmd *cobra.Command) {
 	clients_jetstream_info.Init(command)
 	clients_jetstream_consumer.Init(command)
 	clients_jetstream_publish.Init(command)
+	clients_jetstream_consume.Init(command)
 
 	parentCmd.AddCommand(command)
 

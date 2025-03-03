@@ -1,4 +1,4 @@
-package publish
+package consume
 
 import (
 	"context"
@@ -7,9 +7,7 @@ import (
 	shared "natsauth/internal/shared"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
-	"time"
 
 	fluffycore_async "github.com/fluffy-bunny/fluffycore/async"
 	nats_jetstream "github.com/nats-io/nats.go/jetstream"
@@ -19,29 +17,14 @@ import (
 	viper "github.com/spf13/viper"
 )
 
-const use = "publish"
+const use = "consume"
 
-type (
-	commandInputs struct {
-		DurationT           string
-		PauseDurationT      string
-		Subject             string
-		MessageJsonTemplate string
-	}
-)
-
-var messageJsonTemplate = `{
-	"message": "hello",
-	"timestamp": "$timestamp",
-	"sequence": $sequence
-}`
 var (
-	appInputs        = shared.NewInputs()
-	appCommandInputs = commandInputs{
-		DurationT:           "0s",
-		PauseDurationT:      "1s",
-		Subject:             "",
-		MessageJsonTemplate: messageJsonTemplate,
+	appInputs         = shared.NewInputs()
+	appStreamConfig   = shared.NewStreamConfig()
+	appConsumerConfig = nats_jetstream.ConsumerConfig{
+		Name:           "",
+		FilterSubjects: []string{},
 	}
 )
 
@@ -75,17 +58,20 @@ func Init(parentCmd *cobra.Command) {
 				return err
 			}
 
-			durataion, err := time.ParseDuration(appCommandInputs.DurationT)
+			// get existing stream handle
+			stream, err := js.Stream(ctx, appStreamConfig.Name)
 			if err != nil {
-				log.Error().Err(err).Msg("failed to parse duration")
+				printer.Errorf("Error getting stream: %v", err)
 				return err
 			}
-			pauseDuration, err := time.ParseDuration(appCommandInputs.PauseDurationT)
+			// retrieve consumer handle from a stream
+			consumer, err := stream.Consumer(ctx, appConsumerConfig.Name)
 			if err != nil {
-				log.Error().Err(err).Msg("failed to parse pause duration")
+				printer.Errorf("Error getting consumer: %v", err)
 				return err
 			}
-			ctxPublish, cancel := context.WithCancel(ctx)
+
+			ctxConsume, cancel := context.WithCancel(ctx)
 			futurePublish := fluffycore_async.ExecuteWithPromiseAsync(func(promise async.Promise[*fluffycore_async.AsyncResponse]) {
 				var err error
 				defer func() {
@@ -95,40 +81,33 @@ func Init(parentCmd *cobra.Command) {
 					})
 				}()
 
-				startTime := time.Now()
-				sequence := 0
+				// consume messages from the consumer in callback
+				cc, err := consumer.Consume(func(msg nats_jetstream.Msg) {
+					subject := msg.Subject()
+
+					ui.Main.Clear()
+
+					mm := fmt.Sprintf("subject:%s message: %s", subject, string(msg.Data()))
+					fmt.Fprintf(ui.Main, "%s ", mm)
+					msg.Ack()
+				})
+				if err != nil {
+					fmt.Fprint(ui.Main, err.Error())
+					return
+				}
+				defer cc.Stop()
+
 				quit := false
 				for {
 					if quit {
 						break
 					}
 					select {
-					case <-ctxPublish.Done():
+					case <-ctxConsume.Done():
 						quit = true
 					default:
-						timestamp := time.Now().Format(time.RFC3339)
-						mm := appCommandInputs.MessageJsonTemplate
-						mm = strings.ReplaceAll(mm, "$timestamp", timestamp)
-						mm = strings.ReplaceAll(mm, "$sequence", fmt.Sprintf("%d", sequence))
-
-						ui.Main.Clear()
-						_, err = js.Publish(ctx, appCommandInputs.Subject, []byte(mm),
-							nats_jetstream.WithRetryWait(time.Second*5),
-							nats_jetstream.WithRetryAttempts(100))
-
-						if err != nil {
-							fmt.Fprint(ui.Main, err.Error())
-							quit = true
-							break
-						}
-						fmt.Fprintf(ui.Main, "%s ", mm)
-
-						sequence++
 					}
-					if time.Since(startTime) > durataion {
-						break
-					}
-					time.Sleep(pauseDuration)
+
 				}
 			})
 
@@ -158,24 +137,14 @@ func Init(parentCmd *cobra.Command) {
 
 	shared.InitCommonConnFlags(appInputs, command)
 
-	flagName := "subject"
-	defaultS := appCommandInputs.Subject
-	command.Flags().StringVar(&appCommandInputs.Subject, flagName, defaultS, fmt.Sprintf("[required] i.e. --%s=%s", flagName, defaultS))
+	flagName := "js.name"
+	defaultS := appStreamConfig.Name
+	command.Flags().StringVar(&appStreamConfig.Name, flagName, defaultS, fmt.Sprintf("[required] i.e. --%s=%s", flagName, defaultS))
 	viper.BindPFlag(flagName, command.PersistentFlags().Lookup(flagName))
 
-	flagName = "duration"
-	defaultS = appCommandInputs.DurationT
-	command.Flags().StringVar(&appCommandInputs.DurationT, flagName, defaultS, fmt.Sprintf("[required] i.e. --%s=%s", flagName, defaultS))
-	viper.BindPFlag(flagName, command.PersistentFlags().Lookup(flagName))
-
-	flagName = "pause.duration"
-	defaultS = appCommandInputs.PauseDurationT
-	command.Flags().StringVar(&appCommandInputs.PauseDurationT, flagName, defaultS, fmt.Sprintf("[required] i.e. --%s=%s", flagName, defaultS))
-	viper.BindPFlag(flagName, command.PersistentFlags().Lookup(flagName))
-
-	flagName = "message.json.template"
-	defaultS = appCommandInputs.MessageJsonTemplate
-	command.Flags().StringVar(&appCommandInputs.MessageJsonTemplate, flagName, defaultS, fmt.Sprintf("[required] i.e. --%s=%s", flagName, defaultS))
+	flagName = "consumer.name"
+	defaultS = appConsumerConfig.Name
+	command.Flags().StringVar(&appConsumerConfig.Name, flagName, defaultS, fmt.Sprintf("[required] i.e. --%s=%s", flagName, defaultS))
 	viper.BindPFlag(flagName, command.PersistentFlags().Lookup(flagName))
 
 	parentCmd.AddCommand(command)

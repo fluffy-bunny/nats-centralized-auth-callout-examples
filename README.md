@@ -50,4 +50,7 @@ You can see from the [users](configs/users.json) who has the right to publish an
 .\cli.exe jetstream consumer info   --nats.user god --nats.pass god --js.name  webhooks_inbound --consumer.name wa1
 
 .\cli.exe jetstream publish         --nats.user god --nats.pass god --subject webhooks.inbound.github --duration 10s --pause.duration 10ms
+
+.\cli.exe jetstream consume         --nats.user god --nats.pass god --js.name  webhooks_inbound --consumer.name wa1
+
 ```

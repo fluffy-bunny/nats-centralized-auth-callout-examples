@@ -16,7 +16,7 @@ const use = "info"
 
 var (
 	appInputs          = shared.NewInputs()
-	appJetStreamConfig = shared.NewJetStreamConfig()
+	appJetStreamConfig = shared.NewStreamConfig()
 )
 
 // Init command
