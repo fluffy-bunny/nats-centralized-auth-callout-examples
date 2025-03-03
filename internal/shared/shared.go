@@ -64,11 +64,6 @@ func InitCommonConnFlags(input *Inputs, command *cobra.Command) {
 	command.Flags().StringVar(&input.NatsUrl, flagName, defaultS, fmt.Sprintf("[required] i.e. --%s=%s", flagName, defaultS))
 	viper.BindPFlag(flagName, command.PersistentFlags().Lookup(flagName))
 
-	flagName = "nats.creds"
-	defaultS = input.NatsCreds
-	command.Flags().StringVar(&input.NatsCreds, flagName, defaultS, fmt.Sprintf("[required] i.e. --%s=%s", flagName, defaultS))
-	viper.BindPFlag(flagName, command.PersistentFlags().Lookup(flagName))
-
 	flagName = "nats.user"
 	defaultS = input.NatsUser
 	command.Flags().StringVar(&input.NatsUser, flagName, defaultS, fmt.Sprintf("[required] i.e. --%s=%s", flagName, defaultS))

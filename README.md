@@ -39,6 +39,26 @@ or
 
 You can see from the [users](configs/users.json) who has the right to publish and handle the greet requests.
 
+### Micro Request/Reply
+
+#### Micro Request Handler
+
+```shell
+.\cli.exe handlers micro --nats.user greeter --nats.pass greeter
+```
+
+#### Micro Request Client
+
+```shell
+.\cli.exe clients micro --nats.user joe --nats.pass joe
+```
+
+or
+
+```shell
+.\cli.exe clients micro --nats.user alice --nats.pass alice
+```
+
 ## Jetstream
 
 ```shell
