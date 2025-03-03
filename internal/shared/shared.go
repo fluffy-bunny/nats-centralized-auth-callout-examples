@@ -9,6 +9,7 @@ import (
 	fluffycore_utils "github.com/fluffy-bunny/fluffycore/utils"
 	status "github.com/gogo/status"
 	nats "github.com/nats-io/nats.go"
+	nats_jetstream "github.com/nats-io/nats.go/jetstream"
 	zerolog "github.com/rs/zerolog"
 	cobra "github.com/spf13/cobra"
 	viper "github.com/spf13/viper"
@@ -61,11 +62,6 @@ func InitCommonConnFlags(input *Inputs, command *cobra.Command) {
 	flagName := "nats.url"
 	defaultS := input.NatsUrl
 	command.Flags().StringVar(&input.NatsUrl, flagName, defaultS, fmt.Sprintf("[required] i.e. --%s=%s", flagName, defaultS))
-	viper.BindPFlag(flagName, command.PersistentFlags().Lookup(flagName))
-
-	flagName = "nats.creds"
-	defaultS = input.NatsCreds
-	command.Flags().StringVar(&input.NatsCreds, flagName, defaultS, fmt.Sprintf("[required] i.e. --%s=%s", flagName, defaultS))
 	viper.BindPFlag(flagName, command.PersistentFlags().Lookup(flagName))
 
 	flagName = "nats.user"
@@ -132,4 +128,44 @@ func LoadUsersData(filename string) (*Users, error) {
 	usersData := &Users{}
 	err := json.Unmarshal([]byte(data), usersData)
 	return usersData, err
+}
+
+type (
+	StreamConfigOption func(*nats_jetstream.StreamConfig)
+)
+
+func WithStreamName(name string) StreamConfigOption {
+	return func(c *nats_jetstream.StreamConfig) {
+		c.Name = name
+	}
+}
+
+func WithStreamSubject(subjects ...string) StreamConfigOption {
+	return func(c *nats_jetstream.StreamConfig) {
+		c.Subjects = append(c.Subjects, subjects...)
+	}
+}
+func NewStreamConfig(opts ...StreamConfigOption) *nats_jetstream.StreamConfig {
+	sc := &nats_jetstream.StreamConfig{
+		Name:              "",
+		Subjects:          []string{},
+		Storage:           nats_jetstream.FileStorage,
+		Replicas:          1,
+		Retention:         nats_jetstream.LimitsPolicy,
+		Discard:           nats_jetstream.DiscardOld,
+		MaxMsgs:           -1,
+		MaxMsgsPerSubject: -1,
+		MaxMsgSize:        -1,
+		MaxConsumers:      -1,
+		MaxBytes:          -1,
+		AllowRollup:       false,
+		DenyPurge:         false,
+		DenyDelete:        false,
+		AllowDirect:       true,
+		NoAck:             false,
+	}
+	for _, opt := range opts {
+		opt(sc)
+	}
+	return sc
 }

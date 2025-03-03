@@ -3,6 +3,7 @@ package handlers
 import (
 	cobra_utils "natsauth/internal/cobra_utils"
 
+	handlers_micro "natsauth/cmd/cli/root/handlers/micro"
 	handlers_request "natsauth/cmd/cli/root/handlers/request"
 
 	cobra "github.com/spf13/cobra"
@@ -19,6 +20,7 @@ func Init(parentCmd *cobra.Command) {
 	}
 
 	handlers_request.Init(command)
+	handlers_micro.Init(command)
 
 	parentCmd.AddCommand(command)
 

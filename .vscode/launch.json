@@ -29,6 +29,33 @@
                
 
              ]    
+        }, {
+            "name": "clients/micro/request",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/cmd/cli",
+            "console": "externalTerminal",
+            "args": [ 
+                "clients","micro", "request",
+               "--nats.user","joe","--nats.pass","joe","--request.subject","greet.joe",
+               "--request.duration","1m"
+
+             ]    
+        }, {
+            "name": "jetstream/publish",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/cmd/cli",
+            "console": "externalTerminal",
+            "args": [ 
+                "jetstream","publish",
+               "--nats.user","god","--nats.pass","god",
+               "--subject","webhooks.inbound.github",
+               "--duration","10s"
+
+             ]    
         }
 
 
