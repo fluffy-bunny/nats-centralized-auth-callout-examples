@@ -1,9 +1,10 @@
-package delete
+package get
 
 import (
 	"fmt"
 	cobra_utils "natsauth/internal/cobra_utils"
 	shared "natsauth/internal/shared"
+	"time"
 
 	fluffycore_utils "github.com/fluffy-bunny/fluffycore/utils"
 	nats_jetstream "github.com/nats-io/nats.go/jetstream"
@@ -12,9 +13,42 @@ import (
 	viper "github.com/spf13/viper"
 )
 
-const use = "delete"
+const use = "get"
+
+type (
+	KeyValueData struct {
+		Key   string
+		Value string
+	}
+
+	KeyValueEntry struct {
+		// Bucket is the bucket the data was loaded from.
+		Bucket string
+
+		// Key is the name of the key that was retrieved.
+		Key string
+
+		// Value is the retrieved value.
+		Value string
+
+		// Revision is a unique sequence for this value.
+		Revision uint64
+
+		// Created is the time the data was put in the bucket.
+		Created time.Time
+
+		// Delta is distance from the latest value (how far the current sequence
+		// is from the latest).
+		Delta uint64
+
+		// Operation returns Put or Delete or Purge, depending on the manner in
+		// which the current revision was created.
+		Operation nats_jetstream.KeyValueOp
+	}
+)
 
 var (
+	keyValueData   = KeyValueData{}
 	appInputs      = shared.NewInputs()
 	keyValueConfig = nats_jetstream.KeyValueConfig{}
 )
@@ -53,12 +87,30 @@ func Init(parentCmd *cobra.Command) {
 				return err
 			}
 
-			err = js.DeleteKeyValue(ctx, keyValueConfig.Bucket)
+			store, err := js.KeyValue(ctx, keyValueConfig.Bucket)
 			if err != nil {
-				log.Error().Err(err).Msg("failed to delete key value")
+				log.Error().Err(err).Msg("failed to get key value")
 				return err
 			}
-			printer.Infof("jetstream KV Bucket %s deleted", keyValueConfig.Bucket)
+			entry, err := store.Get(ctx,
+				keyValueData.Key)
+			if err != nil {
+				log.Error().Err(err).Msg("failed to put key value")
+				return err
+			}
+			toKeyValueEntry := func(entry nats_jetstream.KeyValueEntry) *KeyValueEntry {
+
+				return &KeyValueEntry{
+					Bucket:    entry.Bucket(),
+					Key:       entry.Key(),
+					Value:     string(entry.Value()),
+					Revision:  entry.Revision(),
+					Created:   entry.Created(),
+					Delta:     entry.Delta(),
+					Operation: entry.Operation(),
+				}
+			}
+			printer.Print(cobra_utils.Green, fluffycore_utils.PrettyJSON(toKeyValueEntry(entry)))
 			return nil
 		},
 	}
@@ -71,6 +123,11 @@ func Init(parentCmd *cobra.Command) {
 	flagName := "kv.bucket"
 	defaultS := keyValueConfig.Bucket
 	command.Flags().StringVar(&keyValueConfig.Bucket, flagName, defaultS, fmt.Sprintf("[required] i.e. --%s=%s", flagName, defaultS))
+	viper.BindPFlag(flagName, command.PersistentFlags().Lookup(flagName))
+
+	flagName = "kv.entry.key"
+	defaultS = keyValueData.Key
+	command.Flags().StringVar(&keyValueData.Key, flagName, defaultS, fmt.Sprintf("[required] i.e. --%s=%s", flagName, defaultS))
 	viper.BindPFlag(flagName, command.PersistentFlags().Lookup(flagName))
 
 	parentCmd.AddCommand(command)

@@ -1,4 +1,4 @@
-package delete
+package put
 
 import (
 	"fmt"
@@ -12,9 +12,17 @@ import (
 	viper "github.com/spf13/viper"
 )
 
-const use = "delete"
+const use = "put"
+
+type (
+	KeyValueData struct {
+		Key   string
+		Value string
+	}
+)
 
 var (
+	keyValueData   = KeyValueData{}
 	appInputs      = shared.NewInputs()
 	keyValueConfig = nats_jetstream.KeyValueConfig{}
 )
@@ -53,12 +61,19 @@ func Init(parentCmd *cobra.Command) {
 				return err
 			}
 
-			err = js.DeleteKeyValue(ctx, keyValueConfig.Bucket)
+			store, err := js.KeyValue(ctx, keyValueConfig.Bucket)
 			if err != nil {
-				log.Error().Err(err).Msg("failed to delete key value")
+				log.Error().Err(err).Msg("failed to get key value")
 				return err
 			}
-			printer.Infof("jetstream KV Bucket %s deleted", keyValueConfig.Bucket)
+			_, err = store.PutString(ctx,
+				keyValueData.Key,
+				keyValueData.Value)
+			if err != nil {
+				log.Error().Err(err).Msg("failed to put key value")
+				return err
+			}
+			printer.Print(cobra_utils.Green, fluffycore_utils.PrettyJSON(keyValueData))
 			return nil
 		},
 	}
@@ -71,6 +86,16 @@ func Init(parentCmd *cobra.Command) {
 	flagName := "kv.bucket"
 	defaultS := keyValueConfig.Bucket
 	command.Flags().StringVar(&keyValueConfig.Bucket, flagName, defaultS, fmt.Sprintf("[required] i.e. --%s=%s", flagName, defaultS))
+	viper.BindPFlag(flagName, command.PersistentFlags().Lookup(flagName))
+
+	flagName = "kv.entry.key"
+	defaultS = keyValueData.Key
+	command.Flags().StringVar(&keyValueData.Key, flagName, defaultS, fmt.Sprintf("[required] i.e. --%s=%s", flagName, defaultS))
+	viper.BindPFlag(flagName, command.PersistentFlags().Lookup(flagName))
+
+	flagName = "kv.entry.value"
+	defaultS = keyValueData.Value
+	command.Flags().StringVar(&keyValueData.Value, flagName, defaultS, fmt.Sprintf("[required] i.e. --%s=%s", flagName, defaultS))
 	viper.BindPFlag(flagName, command.PersistentFlags().Lookup(flagName))
 
 	parentCmd.AddCommand(command)

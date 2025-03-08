@@ -56,6 +56,35 @@
                "--duration","10s"
 
              ]    
+        }, {
+            "name": "jetstream/kv/bucket/put",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/cmd/cli",
+            "console": "externalTerminal",
+            "args": [ 
+                "jetstream","kv","bucket","put",
+               "--nats.user","god","--nats.pass","god",
+               "--kv.bucket","kvBucket_workflow",
+               "--kv.entry.key","a",
+               "--kv.entry.value","b",
+ 
+             ]    
+        }, {
+            "name": "jetstream/kv/bucket/get",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/cmd/cli",
+            "console": "externalTerminal",
+            "args": [ 
+                "jetstream","kv","bucket","get",
+                "--kv.bucket","kvBucket_workflow",
+                "--nats.user","god","--nats.pass","god",
+                "--kv.entry.key","a",
+  
+             ]    
         }
 
 

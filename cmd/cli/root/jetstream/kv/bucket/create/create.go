@@ -6,10 +6,11 @@ import (
 	shared "natsauth/internal/shared"
 	"time"
 
+	fluffycore_utils "github.com/fluffy-bunny/fluffycore/utils"
 	nats_jetstream "github.com/nats-io/nats.go/jetstream"
 	zerolog "github.com/rs/zerolog"
 	cobra "github.com/spf13/cobra"
-	"github.com/spf13/viper"
+	viper "github.com/spf13/viper"
 )
 
 const use = "create"
@@ -37,11 +38,17 @@ func Init(parentCmd *cobra.Command) {
 			printer.EnableColors = true
 			printer.PrintBold(cobra_utils.Bold, use)
 
+			if fluffycore_utils.IsEmptyOrNil(keyValueConfig.Bucket) {
+				log.Error().Msg("bucket is required")
+				return fmt.Errorf("bucket is required")
+			}
+
 			ttl, err := time.ParseDuration(keyValueTTL)
 			if err != nil {
 				log.Error().Err(err).Msg("failed to parse ttl")
 				return err
 			}
+			ttl = time.Duration(0)
 			keyValueConfig.TTL = ttl
 			nc, err := appInputs.MakeConn(ctx)
 			if err != nil {
