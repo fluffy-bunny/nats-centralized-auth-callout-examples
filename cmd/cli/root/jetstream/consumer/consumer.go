@@ -2,6 +2,7 @@ package consumer
 
 import (
 	clients_jetstream_consumer_add "natsauth/cmd/cli/root/jetstream/consumer/add"
+	clients_jetstream_consumer_delete "natsauth/cmd/cli/root/jetstream/consumer/delete"
 	clients_jetstream_consumer_info "natsauth/cmd/cli/root/jetstream/consumer/info"
 	cobra_utils "natsauth/internal/cobra_utils"
 
@@ -20,6 +21,7 @@ func Init(parentCmd *cobra.Command) {
 
 	clients_jetstream_consumer_add.Init(command)
 	clients_jetstream_consumer_info.Init(command)
+	clients_jetstream_consumer_delete.Init(command)
 
 	parentCmd.AddCommand(command)
 

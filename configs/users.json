@@ -4,11 +4,15 @@
       "username": "god",
       "password": "god",
       "sub": {
-        "allow": [">"],
+        "allow": [
+          ">"
+        ],
         "deny": []
       },
       "pub": {
-        "allow": [">"],
+        "allow": [
+          ">"
+        ],
         "deny": []
       }
     },
@@ -32,7 +36,10 @@
         "deny": []
       },
       "pub": {
-        "allow": [],
+        "allow": [
+          "_INBOX.>",
+          "greet.*.>"
+        ],
         "deny": []
       }
     },
@@ -40,11 +47,17 @@
       "username": "alice",
       "password": "alice",
       "sub": {
-        "allow": ["_INBOX.>", "greet.alice", "greet.alice.reply"],
+        "allow": [
+          "_INBOX.>",
+          "greet.alice",
+          "greet.alice.reply"
+        ],
         "deny": []
       },
       "pub": {
-        "allow": ["greet.alice"],
+        "allow": [
+          "greet.alice"
+        ],
         "deny": []
       }
     },
@@ -52,11 +65,17 @@
       "username": "joe",
       "password": "joe",
       "sub": {
-        "allow": ["_INBOX.>", "greet.joe", "greet.joe.reply"],
+        "allow": [
+          "_INBOX.>",
+          "greet.joe",
+          "greet.joe.reply"
+        ],
         "deny": []
       },
       "pub": {
-        "allow": ["greet.joe"],
+        "allow": [
+          "greet.joe"
+        ],
         "deny": []
       }
     }

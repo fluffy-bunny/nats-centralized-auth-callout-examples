@@ -1,0 +1,26 @@
+package bucket
+
+import (
+	clients_jetstream_kv_bucket_create "natsauth/cmd/cli/root/jetstream/kv/bucket/create"
+	clients_jetstream_kv_bucket_delete "natsauth/cmd/cli/root/jetstream/kv/bucket/delete"
+	cobra_utils "natsauth/internal/cobra_utils"
+
+	cobra "github.com/spf13/cobra"
+)
+
+const use = "bucket"
+
+// Init command
+func Init(parentCmd *cobra.Command) {
+	var command = &cobra.Command{
+		Use:               use,
+		Short:             use,
+		PersistentPreRunE: cobra_utils.ParentPersistentPreRunE,
+	}
+
+	clients_jetstream_kv_bucket_create.Init(command)
+	clients_jetstream_kv_bucket_delete.Init(command)
+
+	parentCmd.AddCommand(command)
+
+}

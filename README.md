@@ -74,3 +74,40 @@ or
 .\cli.exe jetstream consume         --nats.user god --nats.pass god --js.name  webhooks_inbound --consumer.name wa1
 
 ```
+
+## Jetstream Scatter-Gather
+
+a request is sent to a jetstream consumer that will result in 1..n scatter requests which will take a while to respond and will publish their results to whatever reply subject that was passed in the message header.
+
+```shell
+
+.\cli.exe jetstream create          --nats.user god --nats.pass god --js.name  write_scatter_gather --js.subject *.write.props --js.subject *.write.props.> --js.subject write.resp.>
+
+.\cli.exe jetstream info            --nats.user god --nats.pass god --js.name  write_scatter_gather
+
+
+
+.\cli.exe jetstream consumer add    --nats.user god --nats.pass god --js.name  write_scatter_gather --consumer.name middleware_write_props --consumer.filterSubjects *.write.props
+
+.\cli.exe jetstream consumer info   --nats.user god --nats.pass god --js.name  write_scatter_gather --consumer.name middleware_write_props
+
+
+
+.\cli.exe jetstream consumer add    --nats.user god --nats.pass god --js.name  write_scatter_gather --consumer.name middleware_write_resp --consumer.filterSubjects *.write.resp.>
+
+.\cli.exe jetstream consumer info   --nats.user god --nats.pass god --js.name  write_scatter_gather --consumer.name middleware_write_resp
+
+
+.\cli.exe jetstream consumer add    --nats.user god --nats.pass god --js.name  write_scatter_gather --consumer.name write_props_ct1 --consumer.filterSubjects write.props.ct1
+.\cli.exe jetstream consumer add    --nats.user god --nats.pass god --js.name  write_scatter_gather --consumer.name write_props_ct2 --consumer.filterSubjects write.props.c2
+
+
+
+.\cli.exe jetstream consumer info   --nats.user god --nats.pass god --js.name  write_scatter_gather --consumer.name middleware_write_resp --consumer.filterSubjects write.resp.>
+
+
+.\cli.exe jetstream publish         --nats.user god --nats.pass god --subject webhooks.inbound.github --duration 10s --pause.duration 10ms
+
+.\cli.exe jetstream consume         --nats.user god --nats.pass god --js.name  webhooks_inbound --consumer.name wa1
+
+```

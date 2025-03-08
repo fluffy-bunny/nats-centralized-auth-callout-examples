@@ -1,0 +1,24 @@
+package kv
+
+import (
+	clients_jetstream_kv_bucket "natsauth/cmd/cli/root/jetstream/kv/bucket"
+	cobra_utils "natsauth/internal/cobra_utils"
+
+	cobra "github.com/spf13/cobra"
+)
+
+const use = "kv"
+
+// Init command
+func Init(parentCmd *cobra.Command) {
+	var command = &cobra.Command{
+		Use:               use,
+		Short:             use,
+		PersistentPreRunE: cobra_utils.ParentPersistentPreRunE,
+	}
+
+	clients_jetstream_kv_bucket.Init(command)
+
+	parentCmd.AddCommand(command)
+
+}
