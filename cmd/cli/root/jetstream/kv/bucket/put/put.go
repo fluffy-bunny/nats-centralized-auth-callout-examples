@@ -3,8 +3,10 @@ package put
 import (
 	"fmt"
 	cobra_utils "natsauth/internal/cobra_utils"
+	contracts_nats "natsauth/internal/contracts/nats"
 	shared "natsauth/internal/shared"
 
+	di "github.com/fluffy-bunny/fluffy-dozm-di"
 	fluffycore_utils "github.com/fluffy-bunny/fluffycore/utils"
 	nats_jetstream "github.com/nats-io/nats.go/jetstream"
 	zerolog "github.com/rs/zerolog"
@@ -40,17 +42,31 @@ func Init(parentCmd *cobra.Command) {
 			printer := cobra_utils.NewPrinter()
 			printer.EnableColors = true
 			printer.PrintBold(cobra_utils.Bold, use)
+			builder := di.Builder()
+			di.AddInstance[*contracts_nats.NATSConnConfig](builder,
+				&contracts_nats.NATSConnConfig{
+					Username: appInputs.NatsUser,
+					Password: appInputs.NatsPass,
+					NatsUrl:  appInputs.NatsUrl,
+				})
+			shared.AddCommonServices(builder)
+			ctn := builder.Build()
 
 			if fluffycore_utils.IsEmptyOrNil(keyValueConfig.Bucket) {
 				log.Error().Msg("bucket is required")
 				return fmt.Errorf("bucket is required")
 			}
-
-			nc, err := appInputs.MakeConn(ctx)
+			natsConn, err := di.TryGet[contracts_nats.INATSConnection](ctn)
+			if err != nil {
+				log.Error().Err(err).Msg("failed to get nats connection")
+				return err
+			}
+			nc, err := natsConn.Conn(ctx)
 			if err != nil {
 				log.Error().Err(err).Msg("failed to connect to nats server")
 				return err
 			}
+
 			defer nc.Drain()
 
 			printer.Infof("%s connected to %s", appInputs.NatsUser, nc.ConnectedUrl())

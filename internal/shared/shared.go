@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"os"
 
+	services_natsconnection "natsauth/internal/services/natsconnection"
+
+	di "github.com/fluffy-bunny/fluffy-dozm-di"
 	fluffycore_utils "github.com/fluffy-bunny/fluffycore/utils"
 	status "github.com/gogo/status"
 	nats "github.com/nats-io/nats.go"
@@ -168,4 +171,8 @@ func NewStreamConfig(opts ...StreamConfigOption) *nats_jetstream.StreamConfig {
 		opt(sc)
 	}
 	return sc
+}
+
+func AddCommonServices(builder di.ContainerBuilder) {
+	services_natsconnection.AddSingletonNATSConnection(builder)
 }
