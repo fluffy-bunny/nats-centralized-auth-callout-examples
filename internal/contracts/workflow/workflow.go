@@ -67,9 +67,6 @@ type (
 		HintType string `json:"hintType,omitempty"`
 	}
 	Node struct {
-		// ID would be the workflow ID for the root node
-		// omit for all other nodes if not present
-		ID              string               `json:"id,omitempty"`
 		Name            string               `json:"name"`
 		Type            NodeType             `json:"type"`
 		Nodes           []*Node              `json:"nodes,omitempty"`
@@ -79,9 +76,15 @@ type (
 		// NodeHandler is a lookup key to a INodeFunc
 		NodeHandler string `json:"nodeHandler,omitempty"`
 		// ParentNode is put in when we unmarshal the json
-		ParentNode *Node `json:"-"`
+		ParentNode *Node                  `json:"-"`
+		Metadata   map[string]interface{} `json:"metadata,omitempty"`
 	}
-
+	Workflow struct {
+		ID   string `json:"id,omitempty"`
+		Name string `json:"name"`
+		// RootNode is the root node of the workflow
+		RootNode *Node `json:"rootNode"`
+	}
 	IExecutionResult interface {
 		State() ExecutionResultState
 	}
@@ -137,31 +140,31 @@ func NewInput[T any](data *T) (*NodeInput, error) {
 
 	return nr, nil
 }
-func (w *Node) SetExecutionResult(result *NodeExecutionResult) {
-	w.ExecutionResult = result
+func (n *Node) SetExecutionResult(result *NodeExecutionResult) {
+	n.ExecutionResult = result
 }
-func (w *Node) SetInput(input *NodeInput) {
-	w.Input = input
+func (n *Node) SetInput(input *NodeInput) {
+	n.Input = input
 }
-func (w *Node) FixupParentNode() {
-	for _, n := range w.Nodes {
-		n.ParentNode = w
+func (n *Node) FixupParentNode() {
+	for _, n := range n.Nodes {
+		n.ParentNode = n
 		n.FixupParentNode()
 	}
 }
 
-func (w *Node) Marshal() ([]byte, error) {
+func (w *Workflow) Marshal() ([]byte, error) {
 	return json.Marshal(w)
 }
 
-func WorkflowFromJson(jsonB []byte) (*Node, error) {
-	n := &Node{}
-	err := json.Unmarshal(jsonB, n)
+func WorkflowFromJson(jsonB []byte) (*Workflow, error) {
+	w := &Workflow{}
+	err := json.Unmarshal(jsonB, w)
 	if err != nil {
 		return nil, err
 	}
-	n.FixupParentNode()
-	return n, nil
+	w.RootNode.FixupParentNode()
+	return w, nil
 }
 
 type NodePredicate func(n *Node) bool
