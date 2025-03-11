@@ -2,8 +2,6 @@ package workflow
 
 import (
 	"context"
-	"encoding/json"
-	"reflect"
 )
 
 type ExecutionResultState uint
@@ -24,6 +22,15 @@ const (
 	NodeStatus_Complete    NodeStatus = 1
 	NodeStatus_Running     NodeStatus = 2
 	NodeStatus_Terminated  NodeStatus = 3
+)
+
+type WorkflowStatus int
+
+const (
+	WorkflowStatus_UNSPECIFIED WorkflowStatus = 0
+	WorkflowStatus_Complete    WorkflowStatus = 1
+	WorkflowStatus_Running     WorkflowStatus = 2
+	WorkflowStatus_Terminated  WorkflowStatus = 3
 )
 
 type NodeType int
@@ -57,171 +64,37 @@ type (
 		SetWorkflowState(ctx context.Context, request *SetWorkflowStateRequest) (*SetWorkflowStateRequestResponse, error)
 		GetWorkflowState(ctx context.Context, request *GetWorkflowStateRequest) (*GetWorkflowStateRequestResponse, error)
 	}
-	NodeInput struct {
-		Data     []byte `json:"data,omitempty"`
-		HintType string `json:"hintType,omitempty"`
-	}
-	NodeExecutionResult struct {
-		Error    string `json:"error,omitempty"`
-		Data     []byte `json:"data,omitempty"`
-		HintType string `json:"hintType,omitempty"`
-	}
-	Node struct {
-		Name            string               `json:"name"`
-		Type            NodeType             `json:"type"`
-		Nodes           []*Node              `json:"nodes,omitempty"`
-		Status          NodeStatus           `json:"status"`
-		ExecutionResult *NodeExecutionResult `json:"executionResult,omitempty"`
-		Input           *NodeInput           `json:"input,omitempty"`
-		// NodeHandler is a lookup key to a INodeFunc
-		NodeHandler string `json:"nodeHandler,omitempty"`
-		// ParentNode is put in when we unmarshal the json
-		ParentNode *Node                  `json:"-"`
-		Metadata   map[string]interface{} `json:"metadata,omitempty"`
-	}
-	Workflow struct {
-		ID   string `json:"id,omitempty"`
-		Name string `json:"name"`
-		// RootNode is the root node of the workflow
-		RootNode *Node `json:"rootNode"`
-	}
-	IExecutionResult interface {
-		State() ExecutionResultState
-	}
-	INodeFunc interface {
-		Func(ctx context.Context, node INode) error
-	}
-	INode interface {
-		INodeFunc
-		ExecutionResult() IExecutionResult
-		SetState(state ExecutionResultState)
-		GetState() ExecutionResultState
+
+	ExecutionResponse struct {
+		FuncName string      `json:"funcName,omitempty"` // the name of the function that was executed
+		Data     interface{} `json:"data,omitempty"`
+		Error    string      `json:"error,omitempty"`
 	}
 
-	IDecisionNode interface {
-		INode
+	WorkflowExecutionFunc func(ctx context.Context, wf IWorkflow, request interface{}) (interface{}, error)
+	ActivityExecutionFunc func(ctx context.Context, request interface{}) (interface{}, error)
+
+	IWorkflow interface {
+		// ResetCurrentExecutionResponseIndex sets the current execution response index to 0
+		// so we can run the workflow again from the top
+		ResetCurrentExecutionResponseIndex()
+		GetWorkflowID() string
+		SetWorkflowID(id string)
+		GetWorkflowType() string
+		SetWorkflowType(workflowType string)
+		GetStatus() WorkflowStatus
+		SetStatus(status WorkflowStatus)
+		GetResponse() interface{}
+		SetResponse(response interface{})
+		GetInput() interface{}
+		SetInput(input interface{})
+		GetError() string
+		SetError(err string)
+		ToJson() ([]byte, error)
+		FromJson(jsonB []byte) error
+		ExecuteActivity(ctx context.Context, fn ActivityExecutionFunc, request interface{}) (interface{}, error)
 	}
-	ITaskNode interface {
-		INode
+	IWorkflowExecutorFunc interface {
+		WorkflowExecutionFunc
 	}
 )
-
-func NewExecutionResult[T any](data *T, err error) (*NodeExecutionResult, error) {
-	nr := &NodeExecutionResult{}
-	if data != nil {
-
-		hintType := reflect.TypeOf(data).Elem().Name()
-
-		jsonB, err := json.Marshal(data)
-		if err != nil {
-			return nil, err
-		}
-		nr.Data = jsonB
-		nr.HintType = hintType
-	}
-	if err != nil {
-		nr.Error = err.Error()
-	}
-
-	return nr, nil
-}
-func NewInput[T any](data *T) (*NodeInput, error) {
-	nr := &NodeInput{}
-	if data != nil {
-		hintType := reflect.TypeOf(data).Elem().Name()
-
-		jsonB, err := json.Marshal(data)
-		if err != nil {
-			return nil, err
-		}
-		nr.Data = jsonB
-		nr.HintType = hintType
-	}
-
-	return nr, nil
-}
-func (n *Node) SetExecutionResult(result *NodeExecutionResult) {
-	n.ExecutionResult = result
-}
-func (n *Node) SetInput(input *NodeInput) {
-	n.Input = input
-}
-func (n *Node) FixupParentNode() {
-	for _, n := range n.Nodes {
-		n.ParentNode = n
-		n.FixupParentNode()
-	}
-}
-
-func (w *Workflow) Marshal() ([]byte, error) {
-	return json.Marshal(w)
-}
-
-func WorkflowFromJson(jsonB []byte) (*Workflow, error) {
-	w := &Workflow{}
-	err := json.Unmarshal(jsonB, w)
-	if err != nil {
-		return nil, err
-	}
-	w.RootNode.FixupParentNode()
-	return w, nil
-}
-
-type NodePredicate func(n *Node) bool
-type NodePredicateOption struct {
-	Name   *string
-	Type   *NodeType
-	Status *NodeStatus
-}
-type WithNodePredicateOption func(o *NodePredicateOption)
-
-func NewNodePredicationOption(b ...WithNodePredicateOption) *NodePredicateOption {
-	o := &NodePredicateOption{}
-	for _, f := range b {
-		f(o)
-	}
-	return o
-}
-
-func WithNodePredicateOptionName(name string) WithNodePredicateOption {
-	return func(o *NodePredicateOption) {
-		o.Name = &name
-	}
-}
-
-func WithNodePredicateOptionType(nodeType NodeType) WithNodePredicateOption {
-	return func(o *NodePredicateOption) {
-		o.Type = &nodeType
-	}
-}
-func WithNodePredicateOptionStatus(status NodeStatus) WithNodePredicateOption {
-	return func(o *NodePredicateOption) {
-		o.Status = &status
-	}
-}
-
-func NodePredicateFactory(o *NodePredicateOption) NodePredicate {
-	return func(n *Node) bool {
-		if o.Name != nil && *o.Name != n.Name {
-			return false
-		}
-		if o.Type != nil && *o.Type != n.Type {
-			return false
-		}
-		if o.Status != nil && *o.Status != n.Status {
-			return false
-		}
-		return true
-	}
-}
-func FindNode(w *Node, predicate NodePredicate) *Node {
-	if predicate(w) {
-		return w
-	}
-	for _, n := range w.Nodes {
-		if found := FindNode(n, predicate); found != nil {
-			return found
-		}
-	}
-	return nil
-}
