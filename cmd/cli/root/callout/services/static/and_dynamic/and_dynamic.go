@@ -216,7 +216,7 @@ func Init(parentCmd *cobra.Command) {
 						return first, true
 					}
 					for _, item := range user.AllowedAccounts {
-						if item == account {
+						if item == account || item == "*" {
 							return account, true
 						}
 					}
