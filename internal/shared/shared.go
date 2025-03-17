@@ -25,10 +25,11 @@ type (
 		Deny  []string `json:"deny"`
 	}
 	User struct {
-		Username string      `json:"username"`
-		Password string      `json:"password"`
-		Sub      Permissions `json:"sub"`
-		Pub      Permissions `json:"pub"`
+		Username        string      `json:"username"`
+		Password        string      `json:"password"`
+		Sub             Permissions `json:"sub"`
+		Pub             Permissions `json:"pub"`
+		AllowedAccounts []string    `json:"allowedAccounts"`
 	}
 	Users struct {
 		Users []User `json:"users"`

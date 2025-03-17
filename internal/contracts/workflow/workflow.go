@@ -27,10 +27,11 @@ const (
 type WorkflowStatus int
 
 const (
-	WorkflowStatus_UNSPECIFIED WorkflowStatus = 0
-	WorkflowStatus_Complete    WorkflowStatus = 1
-	WorkflowStatus_Running     WorkflowStatus = 2
-	WorkflowStatus_Terminated  WorkflowStatus = 3
+	WorkflowStatus_UNSPECIFIED  WorkflowStatus = 0
+	WorkflowStatus_Complete     WorkflowStatus = 1
+	WorkflowStatus_Running      WorkflowStatus = 2
+	WorkflowStatus_Terminated   WorkflowStatus = 3
+	WorkflowStatus_PendingRetry WorkflowStatus = 4
 )
 
 type NodeType int
@@ -60,15 +61,13 @@ type (
 	SetWorkflowStateRequestResponse struct {
 		WorkflowID string
 	}
-	IWorkflowStore interface {
+	IWorkflowCache interface {
 		SetWorkflowState(ctx context.Context, request *SetWorkflowStateRequest) (*SetWorkflowStateRequestResponse, error)
 		GetWorkflowState(ctx context.Context, request *GetWorkflowStateRequest) (*GetWorkflowStateRequestResponse, error)
 	}
-
-	ExecutionResponse struct {
-		FuncName string      `json:"funcName,omitempty"` // the name of the function that was executed
-		Data     interface{} `json:"data,omitempty"`
-		Error    string      `json:"error,omitempty"`
+	IWorkflowManager interface {
+		CreateWorkflowType(ctx context.Context, request interface{}) (interface{}, error)
+		ExecuteWorkflow(ctx context.Context, request interface{}) (interface{}, error)
 	}
 
 	WorkflowExecutionFunc func(ctx context.Context, wf IWorkflow, request interface{}) (interface{}, error)
@@ -88,11 +87,12 @@ type (
 		SetResponse(response interface{})
 		GetInput() interface{}
 		SetInput(input interface{})
-		GetError() string
-		SetError(err string)
+		GetError() error
+		SetError(err error)
 		ToJson() ([]byte, error)
 		FromJson(jsonB []byte) error
 		ExecuteActivity(ctx context.Context, fn ActivityExecutionFunc, request interface{}) (interface{}, error)
+		StoreState(ctx context.Context) error
 	}
 	IWorkflowExecutorFunc interface {
 		WorkflowExecutionFunc

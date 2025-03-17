@@ -85,6 +85,19 @@
                 "--kv.entry.key","a",
   
              ]    
+        },
+        {
+            "name": "callout/services/static/and_dynamic",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/cmd/cli",
+            "console": "externalTerminal",
+            "args": [ 
+                "callout", "services","static", "and_dynamic",
+                "--users.file", "${workspaceFolder}/configs/users.json",
+
+             ]    
         }
 
 

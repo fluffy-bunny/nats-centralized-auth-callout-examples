@@ -4,6 +4,10 @@
 
 The current nats-server code base only supports centralized with static accounts. i.e. you can't create accounts on demand without a nats-server code change.
 
+This is the [server conf](./configs/static_callout.conf)
+
+What you see is what you get here for accounts. If you want to add new account you have to add them to the conf and restart the nats server.
+
 ### Bring up the nats server
 
 ```shell
@@ -57,6 +61,37 @@ or
 
 ```shell
 .\cli.exe clients micro --nats.user alice --nats.pass alice
+```
+
+## static/and_dynamic
+
+This is for a customized build of nats-server that does account lookups the same why that the decentraized auth variant.
+
+This is the [server conf](./configs/static_callout_lookup.conf)
+
+### Run the auth callout service
+
+```shell
+go build .\cmd\cli\.
+.\cli.exe callout services static and_dynamic --nats.user auth --nats.pass auth
+```
+
+#### Request Handler
+
+```shell
+.\cli.exe handlers request --nats.user greeter@SVC --nats.pass greeter
+```
+
+#### Request Client
+
+```shell
+.\cli.exe clients request_reply --nats.user joe@SVC --nats.pass joe
+```
+
+or
+
+```shell
+.\cli.exe clients request_reply --nats.user alice@SVC --nats.pass alice
 ```
 
 ## Jetstream

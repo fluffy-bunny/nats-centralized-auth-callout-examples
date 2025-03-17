@@ -6,33 +6,38 @@ import (
 	"errors"
 	contracts_workflow "natsauth/internal/contracts/workflow"
 	"reflect"
-	"runtime"
 
 	di "github.com/fluffy-bunny/fluffy-dozm-di"
 	fluffycore_utils "github.com/fluffy-bunny/fluffycore/utils"
 	status "github.com/gogo/status"
+	zerolog "github.com/rs/zerolog"
 	codes "google.golang.org/grpc/codes"
 )
 
 type (
+	ExecutionResponse struct {
+		FuncName string         `json:"funcName,omitempty"` // the name of the function that was executed
+		Data     interface{}    `json:"data,omitempty"`
+		Error    *WorkflowError `json:"error,omitempty"`
+	}
 	service struct {
 		WorkflowID   string `json:"id,omitempty"`
 		WorkflowType string `json:"workflowType"`
 
 		// A workflow would have a deterministic number of activities, so we can cache the results in order of execution.
-		ExecutionResponses            []*contracts_workflow.ExecutionResponse `json:"executionTracker,omitempty"`
-		CurrentExecutionResponseIndex int                                     `json:"currentExecutionResponseIndex,omitempty"`
-		WorkflowStatus                contracts_workflow.WorkflowStatus       `json:"status"`
-		WorkflowInput                 interface{}                             `json:"input,omitempty"`
-		WorkflowResponse              interface{}                             `json:"response,omitempty"`
-		WorkflowError                 string                                  `json:"error,omitempty"`
+		ExecutionResponses            []*ExecutionResponse              `json:"executionTracker,omitempty"`
+		CurrentExecutionResponseIndex int                               `json:"currentExecutionResponseIndex,omitempty"`
+		WorkflowStatus                contracts_workflow.WorkflowStatus `json:"status"`
+		WorkflowInput                 interface{}                       `json:"input,omitempty"`
+		WorkflowResponse              interface{}                       `json:"response,omitempty"`
+		WorkflowError                 *WorkflowError                    `json:"error,omitempty"`
 
-		store contracts_workflow.IWorkflowStore `json:"-"`
+		store contracts_workflow.IWorkflowCache `json:"-"`
 	}
 	NewWorkflowRequest struct {
 		ID           string                            `json:"id,omitempty"`
 		WorkflowType string                            `json:"workflowType"`
-		Store        contracts_workflow.IWorkflowStore `json:"-"`
+		Store        contracts_workflow.IWorkflowCache `json:"-"`
 	}
 	WorkflowOption func(w *service)
 )
@@ -40,7 +45,7 @@ type (
 var stemService = (*service)(nil)
 var _ contracts_workflow.IWorkflow = (*service)(nil)
 
-func (s *service) Ctor(store contracts_workflow.IWorkflowStore) (contracts_workflow.IWorkflow, error) {
+func (s *service) Ctor(store contracts_workflow.IWorkflowCache) (contracts_workflow.IWorkflow, error) {
 	return &service{
 		store: store,
 	}, nil
@@ -88,92 +93,98 @@ func NewWorkflow(ctx context.Context, request *NewWorkflowRequest, opt ...Workfl
 	return wf, nil
 }
 
-func (s *service) AddExecutionResponse(ctx context.Context, er *contracts_workflow.ExecutionResponse) error {
+func (s *service) PushExecutionResponse(ctx context.Context, er *ExecutionResponse) error {
 	s.ExecutionResponses = append(s.ExecutionResponses, er)
+	return s.StoreState(ctx)
+}
+func (s *service) PopExecutionResponse(ctx context.Context) {
+	erLen := len(s.ExecutionResponses)
+	if erLen == 0 {
+		return
+	}
+	s.ExecutionResponses = s.ExecutionResponses[0 : erLen-1]
+
+}
+func ExecuteWorkflow(ctx context.Context, wf contracts_workflow.IWorkflow, fn contracts_workflow.WorkflowExecutionFunc) (resp interface{}, err error) {
+
+	if wf.GetStatus() == contracts_workflow.WorkflowStatus_Complete {
+		return wf.GetResponse(), nil
+	}
+	log := zerolog.Ctx(ctx).With().Logger()
+	defer func() {
+		err = wf.StoreState(ctx)
+		if err != nil {
+			log.Error().Err(err).Msg("failed to store workflow state")
+		}
+	}()
+	wf.SetStatus(contracts_workflow.WorkflowStatus_Running)
+	resp, err = fn(ctx, wf, wf.GetInput())
+	if err != nil {
+
+		if !IsRetryableError(err) {
+			wf.SetStatus(contracts_workflow.WorkflowStatus_Terminated)
+		} else {
+			wf.SetStatus(contracts_workflow.WorkflowStatus_PendingRetry)
+		}
+		wf.SetError(err)
+
+		return nil, err
+	}
+	wf.SetStatus(contracts_workflow.WorkflowStatus_Complete)
+	wf.SetResponse(resp)
+	return resp, nil
+}
+func (s *service) StoreState(ctx context.Context) error {
 	jsonB, err := s.ToJson()
 	if err != nil {
 		return err
 	}
-	s.store.SetWorkflowState(ctx, &contracts_workflow.SetWorkflowStateRequest{
-		WorkflowID: s.WorkflowID,
-		State:      jsonB,
-	})
-	return nil
-}
-
-func ExecuteWorkflow(ctx context.Context, wf contracts_workflow.IWorkflow, fn contracts_workflow.WorkflowExecutionFunc) (interface{}, error) {
-	if wf.GetStatus() == contracts_workflow.WorkflowStatus_Complete {
-		return wf.GetResponse(), nil
-	}
-	wf.SetStatus(contracts_workflow.WorkflowStatus_Running)
-	res, err := fn(ctx, wf, wf.GetInput())
-	if err != nil {
-		wf.SetStatus(contracts_workflow.WorkflowStatus_Terminated)
-		wf.SetError(err.Error())
-		return nil, err
-	}
-	wf.SetStatus(contracts_workflow.WorkflowStatus_Complete)
-	wf.SetResponse(res)
-	return res, nil
+	_, err = s.store.SetWorkflowState(ctx,
+		&contracts_workflow.SetWorkflowStateRequest{
+			WorkflowID: s.WorkflowID,
+			State:      jsonB,
+		})
+	return err
 }
 
 func (s *service) ExecuteActivity(ctx context.Context, fn contracts_workflow.ActivityExecutionFunc, request interface{}) (interface{}, error) {
+
+	doFN := func(ctx context.Context, request interface{}) (interface{}, error) {
+		response, err := fn(ctx, request)
+		workflowError := NewErrorWrapperWorkflowError(err)
+		funcName := ActivityName(fn)
+
+		s.PushExecutionResponse(ctx,
+			&ExecutionResponse{
+				FuncName: funcName,
+				Data:     response,
+				Error:    workflowError,
+			})
+		s.CurrentExecutionResponseIndex = len(s.ExecutionResponses)
+		if workflowError == nil {
+			return response, nil
+		}
+		return response, workflowError
+	}
 
 	c := s.CurrentExecutionResponseIndex
 	if c < len(s.ExecutionResponses) {
 		// return the cached result
 		er := s.ExecutionResponses[c]
-		var err error
-		if fluffycore_utils.IsNotEmptyOrNil(er.Error) {
-			err = errors.New(er.Error)
+		// is this a retryable error
+		if fluffycore_utils.IsNil(er.Error) {
+			// increment the index
+			s.CurrentExecutionResponseIndex++
+			return s.ExecutionResponses[c].Data, nil
 		}
-
-		// increment the index
-		s.CurrentExecutionResponseIndex++
-		return s.ExecutionResponses[c].Data, err
+		if IsRetryableError(er.Error) {
+			// clear out
+			s.PopExecutionResponse(ctx)
+			return doFN(ctx, request)
+		}
+		return s.ExecutionResponses[c].Data, er.Error
 	}
-
-	response, err := fn(ctx, request)
-	if err != nil {
-		// let the caller decide if this error is at the end or a retry is needed.
-		//	w.CurrentExecutinResponseIndex = len(w.ExecutionResponses) - 1
-		return nil, err
-	}
-	funcName := ActivityName(fn)
-
-	s.AddExecutionResponse(ctx,
-		&contracts_workflow.ExecutionResponse{
-			FuncName: funcName,
-			Data:     response,
-		})
-	s.CurrentExecutionResponseIndex = len(s.ExecutionResponses)
-	return response, nil
-
-}
-
-// ActivityName returns the name of the function that is passed in as an interface
-func ActivityName(i interface{}) string {
-	// get the value and type of the interface
-	v := reflect.ValueOf(i)
-	t := v.Type()
-	// check if the interface is a function
-	if t.Kind() == reflect.Func {
-		// get the name of the function
-		funcName := runtime.FuncForPC(v.Pointer()).Name()
-
-		return funcName
-	}
-	// return an empty string if the interface is not a function
-	return ""
-}
-
-func WorkflowFromJson(jsonB []byte) (*service, error) {
-	w := &service{}
-	err := json.Unmarshal(jsonB, w)
-	if err != nil {
-		return nil, err
-	}
-	return w, nil
+	return doFN(ctx, request)
 }
 
 func (s *service) FromJson(jsonB []byte) error {
@@ -222,11 +233,15 @@ func (s *service) GetInput() interface{} {
 func (s *service) SetInput(input interface{}) {
 	s.WorkflowInput = input
 }
-func (s *service) GetError() string {
+func (s *service) GetError() error {
 	return s.WorkflowError
 }
-func (s *service) SetError(err string) {
-	s.WorkflowError = err
+func (s *service) SetError(err error) {
+	if IsWorkflowError(err) {
+		s.WorkflowError = err.(*WorkflowError)
+	} else {
+		s.WorkflowError = NewErrorWrapperWorkflowError(err)
+	}
 }
 
 // SideEffectActivity is a generic function limited to PrimitiveConstraint types.

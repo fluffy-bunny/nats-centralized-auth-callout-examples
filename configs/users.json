@@ -3,6 +3,9 @@
     {
       "username": "god",
       "password": "god",
+      "allowedAccounts": [
+        "*"
+      ],
       "sub": {
         "allow": [
           ">"
@@ -19,6 +22,10 @@
     {
       "username": "greeter",
       "password": "greeter",
+      "allowedAccounts": [
+        "SVC",
+        "google"
+      ],
       "sub": {
         "allow": [
           "_INBOX.>",
@@ -46,6 +53,10 @@
     {
       "username": "alice",
       "password": "alice",
+      "allowedAccounts": [
+        "SVC",
+        "microsoft"
+      ],
       "sub": {
         "allow": [
           "_INBOX.>",
@@ -64,6 +75,10 @@
     {
       "username": "joe",
       "password": "joe",
+      "allowedAccounts": [
+        "SVC",
+        "github"
+      ],
       "sub": {
         "allow": [
           "_INBOX.>",

@@ -19,13 +19,13 @@ type (
 )
 
 var stemService = (*service)(nil)
-var _ contracts_workflow.IWorkflowStore = (*service)(nil)
+var _ contracts_workflow.IWorkflowCache = (*service)(nil)
 
-func (s *service) Ctor() (contracts_workflow.IWorkflowStore, error) {
+func (s *service) Ctor() (contracts_workflow.IWorkflowCache, error) {
 	return &service{}, nil
 }
-func AddSingletonWorkflowStore(builder di.ContainerBuilder) {
-	di.AddSingleton[contracts_workflow.IWorkflowStore](
+func AddSingletonWorkflowCache(builder di.ContainerBuilder) {
+	di.AddSingleton[contracts_workflow.IWorkflowCache](
 		builder,
 		stemService.Ctor,
 	)
