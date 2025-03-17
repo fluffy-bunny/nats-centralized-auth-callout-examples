@@ -69,6 +69,12 @@ This is for a customized build of nats-server that does account lookups the same
 
 This is the [server conf](./configs/static_callout_lookup.conf)
 
+### Bring up the nats server
+
+```shell
+docker-compose -f .\docker-compose-static-account-lookup.yml up
+```
+
 ### Run the auth callout service
 
 ```shell
