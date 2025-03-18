@@ -98,6 +98,21 @@
                 "--users.file", "${workspaceFolder}/configs/users.json",
 
              ]    
+        },{
+            "name": "jetstream/publish - org123",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/cmd/cli",
+            "console": "externalTerminal",
+            "args": [ 
+                "jetstream","publish",
+               "--nats.user","god@sg","--nats.pass","god",
+               "--subject","org1234.write.props.github",
+               "--duration","0s",
+               "--pause.duration","10ms"
+
+             ]    
         }
 
 

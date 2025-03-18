@@ -6,7 +6,11 @@ import (
 	"fmt"
 	"os"
 
+	services_jetstream_wrapper "natsauth/internal/services/jetstream_wrapper"
+	services_jetstream_wrapper_tracer_provider_otel "natsauth/internal/services/jetstream_wrapper/tracer_provider/otel"
 	services_natsconnection "natsauth/internal/services/natsconnection"
+
+	contracts_nats "natsauth/internal/contracts/nats"
 
 	di "github.com/fluffy-bunny/fluffy-dozm-di"
 	fluffycore_utils "github.com/fluffy-bunny/fluffycore/utils"
@@ -174,6 +178,11 @@ func NewStreamConfig(opts ...StreamConfigOption) *nats_jetstream.StreamConfig {
 	return sc
 }
 
-func AddCommonServices(builder di.ContainerBuilder) {
+func AddCommonServices(builder di.ContainerBuilder, appName string) {
 	services_natsconnection.AddSingletonNATSConnection(builder)
+	services_jetstream_wrapper.AddTransientIJetStream(builder)
+	services_jetstream_wrapper_tracer_provider_otel.AddSingletonITracerProvider(builder)
+	di.AddInstance[*contracts_nats.TraceProviderConfig](builder, &contracts_nats.TraceProviderConfig{
+		AppName: appName,
+	})
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	nats_go "github.com/nats-io/nats.go"
+	nats_jetstream "github.com/nats-io/nats.go/jetstream"
 )
 
 type (
@@ -14,5 +15,30 @@ type (
 	}
 	INATSConnection interface {
 		Conn(ctx context.Context) (*nats_go.Conn, error)
+	}
+	ISpan interface {
+		Finish()
+	}
+	StartNewSpanRequest struct {
+		Msg           *nats_go.Msg
+		OperationName string
+		Tags          map[string]string
+	}
+	StartNewSpanResponse struct {
+		Span    ISpan
+		Context context.Context
+	}
+	TraceProviderConfig struct {
+		AppName string
+	}
+	ITracerProvider interface {
+		StartNewSpan(ctx context.Context, request *StartNewSpanRequest) (*StartNewSpanResponse, error)
+	}
+	IJetStream interface {
+		nats_jetstream.JetStream
+		PublishMsgAsyncWithContext(ctx context.Context, msg *nats_go.Msg, opts ...nats_jetstream.PublishOpt) (nats_jetstream.PubAckFuture, error)
+		PublishAsyncWithContext(ctx context.Context, subject string, payload []byte, opts ...nats_jetstream.PublishOpt) (nats_jetstream.PubAckFuture, error)
+
+		SetInner(inner nats_jetstream.JetStream)
 	}
 )

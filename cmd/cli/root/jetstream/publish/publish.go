@@ -11,15 +11,27 @@ import (
 	"syscall"
 	"time"
 
+	contracts_nats "natsauth/internal/contracts/nats"
+
+	di "github.com/fluffy-bunny/fluffy-dozm-di"
 	fluffycore_async "github.com/fluffy-bunny/fluffycore/async"
 	nats_jetstream "github.com/nats-io/nats.go/jetstream"
 	async "github.com/reugn/async"
 	zerolog "github.com/rs/zerolog"
 	cobra "github.com/spf13/cobra"
 	viper "github.com/spf13/viper"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
 )
 
 const use = "publish"
+const (
+	serviceName = "nats-tracing-example"
+)
 
 type (
 	commandInputs struct {
@@ -57,10 +69,35 @@ func Init(parentCmd *cobra.Command) {
 			ctx = log.WithContext(ctx)
 			printer := cobra_utils.NewPrinter()
 			printer.EnableColors = true
+			tp, err := setupOTelTracer()
+			if err != nil {
+				log.Error().Err(err).Msg("failed to setup OpenTelemetry tracer")
+				return err
+			}
+			defer func() {
+				if err := tp.Shutdown(context.Background()); err != nil {
+					log.Printf("Error shutting down tracer provider: %v", err)
+				}
+			}()
+
+			builder := di.Builder()
+			di.AddInstance[*contracts_nats.NATSConnConfig](builder,
+				&contracts_nats.NATSConnConfig{
+					Username: appInputs.NatsUser,
+					Password: appInputs.NatsPass,
+					NatsUrl:  appInputs.NatsUrl,
+				})
+			shared.AddCommonServices(builder, serviceName)
+			ctn := builder.Build()
 
 			ui := shared.NewUI(ctx)
 
-			nc, err := appInputs.MakeConn(ctx)
+			natsConn, err := di.TryGet[contracts_nats.INATSConnection](ctn)
+			if err != nil {
+				log.Error().Err(err).Msg("failed to get nats connection")
+				return err
+			}
+			nc, err := natsConn.Conn(ctx)
 			if err != nil {
 				log.Error().Err(err).Msg("failed to connect to nats server")
 				return err
@@ -69,11 +106,14 @@ func Init(parentCmd *cobra.Command) {
 
 			//printer.Infof("%s connected to %s", appInputs.NatsUser, nc.ConnectedUrl())
 
-			js, err := nats_jetstream.New(nc)
+			innerJS, err := nats_jetstream.New(nc)
 			if err != nil {
 				printer.Errorf("Error creating JetStream context: %v", err)
 				return err
 			}
+
+			js := di.Get[contracts_nats.IJetStream](ctn)
+			js.SetInner(innerJS)
 
 			durataion, err := time.ParseDuration(appCommandInputs.DurationT)
 			if err != nil {
@@ -180,4 +220,37 @@ func Init(parentCmd *cobra.Command) {
 
 	parentCmd.AddCommand(command)
 
+}
+
+// setupOTelTracer configures the OpenTelemetry tracer.
+func setupOTelTracer() (*sdktrace.TracerProvider, error) {
+	// Create stdout exporter for demonstration purposes.
+	exporter, err := stdouttrace.New(stdouttrace.WithPrettyPrint())
+	if err != nil {
+		return nil, fmt.Errorf("creating stdout exporter: %w", err)
+	}
+
+	// Configure resource.
+	res, err := resource.New(context.Background(),
+		resource.WithAttributes(
+			semconv.ServiceName(serviceName),
+			semconv.ServiceVersion("v1.0.0"),
+		),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("creating resource: %w", err)
+	}
+
+	// Create TracerProvider.
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithSampler(sdktrace.AlwaysSample()), // For demonstration, always sample. In production, use a probabilistic sampler.
+		sdktrace.WithBatcher(exporter),
+		sdktrace.WithResource(res),
+	)
+
+	// Set global propagator.
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
+	otel.SetTracerProvider(tp)
+
+	return tp, nil
 }

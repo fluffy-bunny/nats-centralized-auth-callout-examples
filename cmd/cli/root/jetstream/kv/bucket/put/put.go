@@ -49,7 +49,7 @@ func Init(parentCmd *cobra.Command) {
 					Password: appInputs.NatsPass,
 					NatsUrl:  appInputs.NatsUrl,
 				})
-			shared.AddCommonServices(builder)
+			shared.AddCommonServices(builder, "nats.cli")
 			ctn := builder.Build()
 
 			if fluffycore_utils.IsEmptyOrNil(keyValueConfig.Bucket) {

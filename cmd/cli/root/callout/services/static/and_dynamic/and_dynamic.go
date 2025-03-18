@@ -237,6 +237,7 @@ func Init(parentCmd *cobra.Command) {
 					printer.Printf(cobra_utils.Red, "UNAUTHORIZED: username: %s, password: %s\n", username, password)
 					return "", status.Error(codes.PermissionDenied, "permission denied")
 				}
+				printer.Println(cobra_utils.Blue, fluffycore_utils.PrettyJSON(myAccount))
 				printer.Println(cobra_utils.Blue, fluffycore_utils.PrettyJSON(user))
 
 				// use the server specified user nkey
