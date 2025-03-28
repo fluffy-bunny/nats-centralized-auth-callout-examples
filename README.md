@@ -63,6 +63,21 @@ or
 .\cli.exe clients micro --nats.user alice --nats.pass alice
 ```
 
+### jetstream
+
+```shell
+
+.\cli.exe jetstream create          --nats.user god --nats.pass god --js.name  write_scatter_gather --js.subject *.write.props --js.subject *.write.props.> --js.subject *.write.resp.>
+
+.\cli.exe jetstream info            --nats.user god --nats.pass god --js.name  write_scatter_gather
+
+.\cli.exe jetstream consumer add    --nats.user god --nats.pass god --js.name  write_scatter_gather --consumer.name middleware_write_props --consumer.filterSubjects *.write.props --consumer.filterSubjects *.write.props.>
+
+.\cli.exe jetstream publish_one         --nats.user god --nats.pass god --subject org1234.write.props.github
+
+.\cli.exe jetstream publish         --nats.user god --nats.pass god --subject org1234.write.props.github --duration 0s --pause.duration 10ms
+```
+
 ## static/and_dynamic
 
 This is for a customized build of nats-server that does account lookups the same why that the decentraized auth variant.
@@ -110,10 +125,14 @@ a request is sent to a jetstream consumer that will result in 1..n scatter reque
 
 .\cli.exe jetstream info            --nats.user god@sg --nats.pass god --js.name  write_scatter_gather
 
+.\cli.exe jetstream consumer add    --nats.user god@sg --nats.pass god --js.name  write_scatter_gather --consumer.name middleware_write_props --consumer.filterSubjects *.write.props --consumer.filterSubjects *.write.props.>
+
+.\cli.exe jetstream publish_one         --nats.user god@sg --nats.pass god --subject org1234.write.props.github
+
 .\cli.exe jetstream publish         --nats.user god@sg --nats.pass god --subject org1234.write.props.github --duration 0s --pause.duration 10ms
 
 
-.\cli.exe jetstream consumer add    --nats.user god@sg --nats.pass god --js.name  write_scatter_gather --consumer.name middleware_write_props --consumer.filterSubjects *.write.props
+
 
 .\cli.exe jetstream consumer info   --nats.user god@sg --nats.pass god --js.name  write_scatter_gather --consumer.name middleware_write_props
 

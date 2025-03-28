@@ -11,6 +11,7 @@ import (
 	shared "natsauth/internal/shared"
 
 	clients "natsauth/cmd/cli/root/clients"
+	configurator "natsauth/cmd/cli/root/configurator"
 	handlers "natsauth/cmd/cli/root/handlers"
 	jetstream "natsauth/cmd/cli/root/jetstream"
 
@@ -61,5 +62,6 @@ func InitRootCmd() *cobra.Command {
 	handlers.Init(command)
 	clients.Init(command)
 	jetstream.Init(command)
+	configurator.Init(command)
 	return command
 }

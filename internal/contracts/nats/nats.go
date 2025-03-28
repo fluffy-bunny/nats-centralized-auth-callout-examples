@@ -33,6 +33,7 @@ type (
 	}
 	ITracerProvider interface {
 		StartNewSpan(ctx context.Context, request *StartNewSpanRequest) (*StartNewSpanResponse, error)
+		ContextFromMessage(msg nats_jetstream.Msg) context.Context
 	}
 	IJetStream interface {
 		nats_jetstream.JetStream
@@ -40,5 +41,13 @@ type (
 		PublishAsyncWithContext(ctx context.Context, subject string, payload []byte, opts ...nats_jetstream.PublishOpt) (nats_jetstream.PubAckFuture, error)
 
 		SetInner(inner nats_jetstream.JetStream)
+	}
+	MessageHandler func(ctx context.Context, msg nats_jetstream.Msg)
+
+	IConsumer interface {
+		nats_jetstream.Consumer
+		SetInner(inner nats_jetstream.Consumer)
+
+		ConsumeWithContext(handler MessageHandler, opts ...nats_jetstream.PullConsumeOpt) (nats_jetstream.ConsumeContext, error)
 	}
 )

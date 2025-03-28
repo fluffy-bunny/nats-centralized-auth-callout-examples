@@ -1,7 +1,8 @@
 services:
   # Internal NATS server.
   server:
-    image: mappeddev.azurecr.io/mapped/nats:sha-daa3f5db
+    #image: mappeddev.azurecr.io/mapped/nats:sha-daa3f5db
+    image: mappeddev.azurecr.io/mapped/nats:1.0.2
     command:
       -n internal-server
       -m 8222

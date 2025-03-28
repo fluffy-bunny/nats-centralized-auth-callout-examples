@@ -113,6 +113,34 @@
                "--pause.duration","10ms"
 
              ]    
+        },{
+            "name": "jetstream/consume - write_scatter_gather",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/cmd/cli",
+            "console": "externalTerminal",
+            "args": [ 
+                "jetstream","consume",
+               "--nats.user","god@sg","--nats.pass","god",
+               "--js.name","write_scatter_gather",
+               "--consumer.name","middleware_write_props",
+ 
+             ]    
+        },{
+            "name": "jetstream/publish_one - org123",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/cmd/cli",
+            "console": "externalTerminal",
+            "args": [ 
+                "jetstream","publish_one",
+               "--nats.user","god@sg","--nats.pass","god",
+               "--subject","org1234.write.props.github",
+ 
+
+             ]    
         }
 
 

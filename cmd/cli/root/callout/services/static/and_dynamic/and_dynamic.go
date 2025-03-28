@@ -33,6 +33,8 @@ var (
 	wellknownAudiences        = map[string]string{
 		"SYS":  "SYS",
 		"Auth": "Auth",
+		"SVC":  "SVC",
+		"sg":   "sg",
 	}
 )
 
@@ -252,7 +254,11 @@ func Init(parentCmd *cobra.Command) {
 				uc.Pub.Deny.Add(user.Pub.Deny...)
 
 				// perhaps add an expiration to the JWT
-				uc.Expires = time.Now().Unix() + 90
+				/*
+					_, ok = wellknownAudiences[audience]
+					if !ok {
+						uc.Expires = time.Now().Unix() + 90
+					} */
 				return uc.Encode(akp)
 			}
 			// start the service

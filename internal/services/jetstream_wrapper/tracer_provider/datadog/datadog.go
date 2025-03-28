@@ -4,9 +4,12 @@ import (
 	"context"
 	contracts_nats "natsauth/internal/contracts/nats"
 
+	services_consumer_wrapper "natsauth/internal/services/consumer_wrapper"
 	services_jetstream_wrapper "natsauth/internal/services/jetstream_wrapper"
 
 	di "github.com/fluffy-bunny/fluffy-dozm-di"
+	nats_jetstream "github.com/nats-io/nats.go/jetstream"
+	otel "go.opentelemetry.io/otel"
 	tracer "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
@@ -54,4 +57,11 @@ func (s *service) StartNewSpan(ctx context.Context, request *contracts_nats.Star
 		Span:    &spanCarrier{span: span},
 		Context: ctx,
 	}, nil
+}
+func (s *service) ContextFromMessage(msg nats_jetstream.Msg) context.Context {
+	propagator := otel.GetTextMapPropagator()
+	ctx := context.Background()
+	carrier := services_consumer_wrapper.NewNATSMessageCarrier(msg)
+	ctx = propagator.Extract(ctx, carrier)
+	return ctx
 }

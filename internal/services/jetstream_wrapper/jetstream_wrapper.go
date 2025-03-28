@@ -3,14 +3,12 @@ package jetstream_wrapper
 import (
 	"context"
 	contracts_nats "natsauth/internal/contracts/nats"
-
-	"github.com/nats-io/nats.go" // Import NATS Go client
-	nats_jetstream "github.com/nats-io/nats.go/jetstream"
-	"github.com/rs/zerolog"
+	propagators "natsauth/internal/propagators"
 
 	di "github.com/fluffy-bunny/fluffy-dozm-di"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/ext"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+	nats "github.com/nats-io/nats.go" // Import NATS Go client
+	nats_jetstream "github.com/nats-io/nats.go/jetstream"
+	ext "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/ext"
 )
 
 type (
@@ -18,14 +16,10 @@ type (
 		JetStreamBase
 		tracerProvider contracts_nats.ITracerProvider
 	}
-	spanCarrier struct {
-		span tracer.Span
-	}
 )
 
 var stemService = (*service)(nil)
 var _ contracts_nats.IJetStream = (*service)(nil)
-var _ contracts_nats.ISpan = (*spanCarrier)(nil)
 
 func (s *service) Ctor(tracerProvider contracts_nats.ITracerProvider) (contracts_nats.IJetStream, error) {
 	return &service{
@@ -39,11 +33,7 @@ func AddTransientIJetStream(builder di.ContainerBuilder) {
 		stemService.Ctor,
 	)
 }
-func (s *spanCarrier) Finish() {
-	if s.span != nil {
-		s.span.Finish()
-	}
-}
+
 func (s *service) Publish(ctx context.Context, subject string, payload []byte, opts ...nats_jetstream.PublishOpt) (*nats_jetstream.PubAck, error) {
 	msg := &nats.Msg{
 		Subject: subject,
@@ -53,32 +43,35 @@ func (s *service) Publish(ctx context.Context, subject string, payload []byte, o
 }
 
 func (s *service) PublishMsg(ctx context.Context, msg *nats.Msg, opts ...nats_jetstream.PublishOpt) (*nats_jetstream.PubAck, error) {
-	response, _ := s.tracerProvider.StartNewSpan(ctx, &contracts_nats.StartNewSpanRequest{
-		Msg:           msg,
-		OperationName: "PublishMsg",
-		Tags: map[string]string{
-			ext.Component: "nats",
-			ext.SpanType:  ext.SpanTypeMessageProducer,
-		},
-	})
+	ctx = propagators.EnsureCorrelationId(ctx)
+	response, _ := s.tracerProvider.StartNewSpan(
+		ctx,
+		&contracts_nats.StartNewSpanRequest{
+			Msg:           msg,
+			OperationName: "PublishMsg",
+			Tags: map[string]string{
+				ext.Component: "nats",
+				ext.SpanType:  ext.SpanTypeMessageProducer,
+			},
+		})
 	defer response.Span.Finish()
 
 	return s.Inner.PublishMsg(response.Context, msg, opts...)
 }
 
 func (s *service) PublishMsgAsyncWithContext(ctx context.Context, msg *nats.Msg, opts ...nats_jetstream.PublishOpt) (nats_jetstream.PubAckFuture, error) {
-	log := zerolog.Ctx(ctx).With().Str("subject", msg.Subject).Logger()
-
-	response, _ := s.tracerProvider.StartNewSpan(ctx, &contracts_nats.StartNewSpanRequest{
-		Msg:           msg,
-		OperationName: "PublishMsgAsyncWithContext",
-		Tags: map[string]string{
-			ext.Component: "nats",
-			ext.SpanType:  ext.SpanTypeMessageProducer,
-		},
-	})
+	ctx = propagators.EnsureCorrelationId(ctx)
+	response, _ := s.tracerProvider.StartNewSpan(
+		ctx,
+		&contracts_nats.StartNewSpanRequest{
+			Msg:           msg,
+			OperationName: "PublishMsgAsyncWithContext",
+			Tags: map[string]string{
+				ext.Component: "nats",
+				ext.SpanType:  ext.SpanTypeMessageProducer,
+			},
+		})
 	defer response.Span.Finish()
-	log.Debug().Interface("msg.Header", msg.Header).Interface("msg.Data", msg.Data).Msg("PublishMsg")
 
 	return s.Inner.PublishMsgAsync(msg, opts...)
 }

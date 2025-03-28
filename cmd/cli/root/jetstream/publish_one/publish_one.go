@@ -1,20 +1,17 @@
-package consume
+package publish_one
 
 import (
 	"context"
 	"fmt"
 	cobra_utils "natsauth/internal/cobra_utils"
 	shared "natsauth/internal/shared"
-	"os"
-	"os/signal"
-	"syscall"
+	"strings"
+	"time"
 
 	contracts_nats "natsauth/internal/contracts/nats"
 
 	di "github.com/fluffy-bunny/fluffy-dozm-di"
-	fluffycore_async "github.com/fluffy-bunny/fluffycore/async"
 	nats_jetstream "github.com/nats-io/nats.go/jetstream"
-	async "github.com/reugn/async"
 	zerolog "github.com/rs/zerolog"
 	cobra "github.com/spf13/cobra"
 	viper "github.com/spf13/viper"
@@ -26,17 +23,28 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
 )
 
-const use = "consume"
+const use = "publish_one"
 const (
 	serviceName = "nats-tracing-example"
 )
 
+type (
+	commandInputs struct {
+		Subject             string
+		MessageJsonTemplate string
+	}
+)
+
+var messageJsonTemplate = `{
+	"message": "hello",
+	"timestamp": "$timestamp",
+	"sequence": $sequence
+}`
 var (
-	appInputs         = shared.NewInputs()
-	appStreamConfig   = shared.NewStreamConfig()
-	appConsumerConfig = nats_jetstream.ConsumerConfig{
-		Name:           "",
-		FilterSubjects: []string{},
+	appInputs        = shared.NewInputs()
+	appCommandInputs = commandInputs{
+		Subject:             "",
+		MessageJsonTemplate: messageJsonTemplate,
 	}
 )
 
@@ -52,7 +60,6 @@ func Init(parentCmd *cobra.Command) {
 			ctx = log.WithContext(ctx)
 			printer := cobra_utils.NewPrinter()
 			printer.EnableColors = true
-
 			tp, err := setupOTelTracer()
 			if err != nil {
 				log.Error().Err(err).Msg("failed to setup OpenTelemetry tracer")
@@ -74,8 +81,6 @@ func Init(parentCmd *cobra.Command) {
 			shared.AddCommonServices(builder, serviceName)
 			ctn := builder.Build()
 
-			ui := shared.NewUI(ctx)
-
 			natsConn, err := di.TryGet[contracts_nats.INATSConnection](ctn)
 			if err != nil {
 				log.Error().Err(err).Msg("failed to get nats connection")
@@ -90,90 +95,32 @@ func Init(parentCmd *cobra.Command) {
 
 			//printer.Infof("%s connected to %s", appInputs.NatsUser, nc.ConnectedUrl())
 
-			js, err := nats_jetstream.New(nc)
+			innerJS, err := nats_jetstream.New(nc)
 			if err != nil {
 				printer.Errorf("Error creating JetStream context: %v", err)
 				return err
 			}
 
-			// get existing stream handle
-			stream, err := js.Stream(ctx, appStreamConfig.Name)
+			js := di.Get[contracts_nats.IJetStream](ctn)
+			js.SetInner(innerJS)
+
+			sequence := 0
+			timestamp := time.Now().Format(time.RFC3339)
+			mm := appCommandInputs.MessageJsonTemplate
+			mm = strings.ReplaceAll(mm, "$timestamp", timestamp)
+			mm = strings.ReplaceAll(mm, "$sequence", fmt.Sprintf("%d", sequence))
+
+			_, err = js.Publish(ctx, appCommandInputs.Subject, []byte(mm),
+				nats_jetstream.WithRetryWait(time.Second*5),
+				nats_jetstream.WithRetryAttempts(100))
+
 			if err != nil {
-				printer.Errorf("Error getting stream: %v", err)
-				return err
-			}
-			// retrieve consumer handle from a stream
-			consumer, err := stream.Consumer(ctx, appConsumerConfig.Name)
-			if err != nil {
-				printer.Errorf("Error getting consumer: %v", err)
-				return err
+				log.Error().Err(err).Msg("failed to publish message")
+
+			} else {
+				log.Info().Msg(fmt.Sprintf("published message %d", sequence))
 			}
 
-			consumerWrapper, err := di.TryGet[contracts_nats.IConsumer](ctn)
-			if err != nil {
-				log.Error().Err(err).Msg("failed to get nats connection")
-				return err
-			}
-			consumerWrapper.SetInner(consumer)
-
-			ctxConsume, cancel := context.WithCancel(ctx)
-			futureConsume := fluffycore_async.ExecuteWithPromiseAsync(func(promise async.Promise[*fluffycore_async.AsyncResponse]) {
-				var err error
-				defer func() {
-					promise.Success(&fluffycore_async.AsyncResponse{
-						Message: "End Serve - tview",
-						Error:   err,
-					})
-				}()
-
-				// consume messages from the consumer in callback
-				cc, err := consumerWrapper.ConsumeWithContext(func(ctx context.Context, msg nats_jetstream.Msg) {
-					log := zerolog.Ctx(ctx).With().Logger()
-					subject := msg.Subject()
-					log = log.With().Str("subject", subject).Logger()
-					ui.Main.Clear()
-
-					mm := fmt.Sprintf("subject:%s message: %s", subject, string(msg.Data()))
-					fmt.Fprintf(ui.Main, "%s ", mm)
-					msg.Ack()
-					log.Info().Msg(mm)
-				})
-				if err != nil {
-					fmt.Fprint(ui.Main, err.Error())
-					return
-				}
-				defer cc.Stop()
-
-				quit := false
-				for {
-					if quit {
-						break
-					}
-					select {
-					case <-ctxConsume.Done():
-						quit = true
-					default:
-					}
-
-				}
-			})
-
-			// wait for an interrupt
-			// Create a channel to receive OS signals.
-			sigs := make(chan os.Signal, 1)
-			// Notify the channel on interrupt signals.
-			signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-			fmt.Fprintf(ui.Footer, "%s ", "Waiting for interrupt signal...")
-
-			fmt.Println("Waiting for interrupt signal...")
-
-			// Block until a signal is received.
-			<-sigs
-			cancel()
-
-			futureConsume.Join()
-			ui.App.Stop()
-			ui.Future.Join()
 			//printer.Printf(cobra_utils.Green, "published %d messages\n", sequence+1)
 			return nil
 
@@ -184,14 +131,14 @@ func Init(parentCmd *cobra.Command) {
 
 	shared.InitCommonConnFlags(appInputs, command)
 
-	flagName := "js.name"
-	defaultS := appStreamConfig.Name
-	command.Flags().StringVar(&appStreamConfig.Name, flagName, defaultS, fmt.Sprintf("[required] i.e. --%s=%s", flagName, defaultS))
+	flagName := "subject"
+	defaultS := appCommandInputs.Subject
+	command.Flags().StringVar(&appCommandInputs.Subject, flagName, defaultS, fmt.Sprintf("[required] i.e. --%s=%s", flagName, defaultS))
 	viper.BindPFlag(flagName, command.PersistentFlags().Lookup(flagName))
 
-	flagName = "consumer.name"
-	defaultS = appConsumerConfig.Name
-	command.Flags().StringVar(&appConsumerConfig.Name, flagName, defaultS, fmt.Sprintf("[required] i.e. --%s=%s", flagName, defaultS))
+	flagName = "message.json.template"
+	defaultS = appCommandInputs.MessageJsonTemplate
+	command.Flags().StringVar(&appCommandInputs.MessageJsonTemplate, flagName, defaultS, fmt.Sprintf("[required] i.e. --%s=%s", flagName, defaultS))
 	viper.BindPFlag(flagName, command.PersistentFlags().Lookup(flagName))
 
 	parentCmd.AddCommand(command)
