@@ -100,7 +100,7 @@ func Init(parentCmd *cobra.Command) {
 				for _, item := range usersData.Users {
 					if item.Username == username && item.Password == password {
 						authenticated = true
-						user = &item
+						user = item
 						break
 					}
 				}

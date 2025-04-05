@@ -159,7 +159,7 @@ func Init(parentCmd *cobra.Command) {
 				},
 				AllowedAccounts: []string{"SYS"},
 			}
-			usersData.Users = append(usersData.Users, sysUser)
+			usersData.Users = append(usersData.Users, &sysUser)
 
 			printer.Println(cobra_utils.Blue, fluffycore_utils.PrettyJSON(usersData))
 			// Parse the xkey seed if present.
@@ -197,7 +197,7 @@ func Init(parentCmd *cobra.Command) {
 				for _, item := range usersData.Users {
 					if item.Username == username && item.Password == password {
 						authenticated = true
-						user = &item
+						user = item
 						break
 					}
 				}

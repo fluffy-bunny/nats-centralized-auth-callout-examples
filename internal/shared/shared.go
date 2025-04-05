@@ -2,9 +2,11 @@ package shared
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	services_consumer_wrapper "natsauth/internal/services/consumer_wrapper"
 	services_jetstream_wrapper "natsauth/internal/services/jetstream_wrapper"
@@ -37,7 +39,7 @@ type (
 		AllowedAccounts []string    `json:"allowedAccounts"`
 	}
 	Users struct {
-		Users []User `json:"users"`
+		Users []*User `json:"users"`
 	}
 )
 
@@ -51,14 +53,20 @@ func GetContext() context.Context {
 }
 
 type Inputs struct {
-	NatsUrl         string   `json:"natsUrl"`
-	NatsCreds       string   `json:"natsCreds"`
-	IssuerSeed      string   `json:"issuerSeed"`
-	NatsUser        string   `json:"natsUser"`
-	NatsPass        string   `json:"natsPass"`
-	XKeySeed        string   `json:"xkeySeed"`
-	SigningKeyFiles []string `json:"signingKeyFiles"`
-	UsersFile       string   `json:"usersFile"`
+	NatsUrl               string   `json:"natsUrl"`
+	NatsCreds             string   `json:"natsCreds"`
+	IssuerSeed            string   `json:"issuerSeed"`
+	NatsUser              string   `json:"natsUser"`
+	NatsPass              string   `json:"natsPass"`
+	XKeySeed              string   `json:"xkeySeed"`
+	SigningKeyFiles       []string `json:"signingKeyFiles"`
+	UsersFile             string   `json:"usersFile"`
+	SysCreds              string   `json:"sysCreds"`
+	OperatorNKeyFile      string   `json:"operatorNKeyFile"`
+	CalloutIssuerNKeyFile string   `json:"calloutIssuerNKeyFile"`
+	AuthAccountJWTFile    string   `json:"authAccountJWTF"`
+	CalloutCreds          string   `json:"calloutCreds"`
+	SentinelCreds         string   `json:"sentinelCreds"`
 }
 
 func NewInputs() *Inputs {
@@ -104,7 +112,13 @@ func (appInputs *Inputs) MakeConn(ctx context.Context) (*nats.Conn, error) {
 		return nil, status.Error(codes.InvalidArgument, "nats pass is required")
 	}
 	opts = append(opts, nats.UserInfo(appInputs.NatsUser, appInputs.NatsPass))
-
+	if fluffycore_utils.IsNotEmptyOrNil(appInputs.SentinelCreds) {
+		if !FileExists(appInputs.SentinelCreds) {
+			log.Error().Msgf("sentinel creds file does not exist: %s", appInputs.SentinelCreds)
+			return nil, status.Error(codes.NotFound, fmt.Sprintf("sentinel creds file does not exist: %s", appInputs.SentinelCreds))
+		}
+		opts = append(opts, nats.UserCredentials(appInputs.SentinelCreds))
+	}
 	nc, err := nats.Connect(
 		appInputs.NatsUrl,
 		opts...,
@@ -187,4 +201,29 @@ func AddCommonServices(builder di.ContainerBuilder, appName string) {
 	di.AddInstance[*contracts_nats.TraceProviderConfig](builder, &contracts_nats.TraceProviderConfig{
 		AppName: appName,
 	})
+}
+
+// ParseJWT parses a JWT and extracts the 'sub' claim
+func ExtractClaimFromJWTNoValidation(token string, claimName string) (interface{}, error) {
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return "", fmt.Errorf("invalid token format")
+	}
+
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return "", fmt.Errorf("decoding payload: %v", err)
+	}
+
+	var claims map[string]interface{}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return "", fmt.Errorf("unmarshalling payload: %v", err)
+	}
+
+	claimValue, ok := claims[claimName]
+	if !ok {
+		return "", fmt.Errorf("'sub' claim not found or invalid")
+	}
+
+	return claimValue, nil
 }

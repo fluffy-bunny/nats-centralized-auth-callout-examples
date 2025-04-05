@@ -547,7 +547,7 @@ func WriteCreds(ctx context.Context, root string, request *configurator_models.W
 		return nil, err
 	}
 	outputDir := path.Join(exeDir, root)
-	credsPath := path.Join(outputDir, fmt.Sprintf(" %s.creds", request.Name))
+	credsPath := path.Join(outputDir, fmt.Sprintf("%s.creds", request.Name))
 	if err := os.WriteFile(credsPath,
 		request.Creds, 0644); err != nil {
 		log.Error().Err(err).Msg("failed to write creds")

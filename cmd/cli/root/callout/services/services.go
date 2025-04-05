@@ -3,7 +3,10 @@ package services
 import (
 	cobra_utils "natsauth/internal/cobra_utils"
 
+	callout_services_operator_mode_dynamic_accounts "natsauth/cmd/cli/root/callout/services/operator_mode_dynamic_accounts"
 	callout_services_static "natsauth/cmd/cli/root/callout/services/static"
+
+	callout_services_url_resolver "natsauth/cmd/cli/root/callout/services/url_resolver"
 
 	cobra "github.com/spf13/cobra"
 )
@@ -19,6 +22,8 @@ func Init(parentCmd *cobra.Command) {
 	}
 
 	callout_services_static.Init(command)
+	callout_services_operator_mode_dynamic_accounts.Init(command)
+	callout_services_url_resolver.Init(command)
 
 	parentCmd.AddCommand(command)
 

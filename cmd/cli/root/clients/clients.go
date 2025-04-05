@@ -3,6 +3,7 @@ package clients
 import (
 	cobra_utils "natsauth/internal/cobra_utils"
 
+	clients_decentralized_dynamic "natsauth/cmd/cli/root/clients/decentralized_dynamic"
 	clients_micro "natsauth/cmd/cli/root/clients/micro"
 	clients_request_reply "natsauth/cmd/cli/root/clients/request_reply"
 
@@ -21,6 +22,7 @@ func Init(parentCmd *cobra.Command) {
 
 	clients_request_reply.Init(command)
 	clients_micro.Init(command)
+	clients_decentralized_dynamic.Init(command)
 
 	parentCmd.AddCommand(command)
 

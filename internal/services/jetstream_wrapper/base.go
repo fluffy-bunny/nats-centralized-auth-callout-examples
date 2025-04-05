@@ -2,6 +2,7 @@ package jetstream_wrapper
 
 import (
 	"context"
+	"time"
 
 	nats "github.com/nats-io/nats.go"
 	nats_jetstream "github.com/nats-io/nats.go/jetstream"
@@ -69,6 +70,16 @@ func (s *JetStreamBase) OrderedConsumer(ctx context.Context, stream string, cfg 
 // returned.
 func (s *JetStreamBase) Consumer(ctx context.Context, stream string, consumer string) (nats_jetstream.Consumer, error) {
 	return s.Inner.Consumer(ctx, stream, consumer)
+}
+
+// PauseConsumer pauses a consumer until the given time.
+func (s *JetStreamBase) PauseConsumer(ctx context.Context, stream string, consumer string, pauseUntil time.Time) (*nats_jetstream.ConsumerPauseResponse, error) {
+	return s.Inner.PauseConsumer(ctx, stream, consumer, pauseUntil)
+}
+
+// ResumeConsumer resumes a paused consumer.
+func (s *JetStreamBase) ResumeConsumer(ctx context.Context, stream string, consumer string) (*nats_jetstream.ConsumerPauseResponse, error) {
+	return s.Inner.ResumeConsumer(ctx, stream, consumer)
 }
 
 // DeleteConsumer removes a consumer with given name from a stream.

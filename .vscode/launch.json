@@ -141,8 +141,67 @@
  
 
              ]    
+        }, {
+            "name": "callout/services/operator_mode_dynamic_accounts",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/cmd/cli",
+            "console": "externalTerminal",
+            "args": [ 
+                "callout", "services","operator_mode_dynamic_accounts",
+                "--users.file", "${workspaceFolder}/configs/users.json",
+                "--resolver.service.json.path", "${workspaceFolder}/herb/herb.resolver.service.json",
+                "--sys.creds", "${workspaceFolder}/herb/herb.sys.creds",
+                "--callout.creds", "${workspaceFolder}/herb/herb.auth.creds",
+
+             ]    
+        }, {
+            "name": "callout/services/operator_mode_dynamic_accounts-test",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/cmd/cli",
+            "console": "externalTerminal",
+            "args": [ 
+                "callout", "services","operator_mode_dynamic_accounts",
+                "--users.file", "${workspaceFolder}/configs/users.json",
+                "--sys.creds", "${workspaceFolder}/configs/test/sys.creds",
+                "--callout.creds", "${workspaceFolder}/configs/test/service.creds",
+                "--operator.nk", "${workspaceFolder}/configs/test/operator.nk",
+                "--callout.issuer.nk", "${workspaceFolder}/configs/test/C.nk",
+                "--auth.account.jwt", "${workspaceFolder}/configs/test/auth.account.jwt",
+             ]    
+        }, {
+            "name": "configurator/operator_mode",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/cmd/cli",
+            "console": "externalTerminal",
+            "args": [ 
+                "configurator", "operator_mode", 
+                "--name", "herb2",
+ 
+
+             ]    
+        }, {
+            "name": "clients/decentralized_dynamic",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/cmd/cli",
+            "console": "externalTerminal",
+            "args": [ 
+                "clients", "decentralized_dynamic", 
+                "--nats.user", "alice@svc",
+                "--nats.pass", "alice",
+                "--sentinel.creds", "${workspaceFolder}/configs/test/sentinel.creds",
+ 
+
+             ]    
         }
 
-
+ 
     ]
 }
