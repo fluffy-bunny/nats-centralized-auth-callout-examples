@@ -64,7 +64,8 @@ type Inputs struct {
 	SysCreds              string   `json:"sysCreds"`
 	OperatorNKeyFile      string   `json:"operatorNKeyFile"`
 	CalloutIssuerNKeyFile string   `json:"calloutIssuerNKeyFile"`
-	AuthAccountJWTFile    string   `json:"authAccountJWTF"`
+	AuthAccountJWTFile    string   `json:"authAccountJWTFile"`
+	SystemAccountJWTFile  string   `json:"systemAccountJWTFile"`
 	CalloutCreds          string   `json:"calloutCreds"`
 	SentinelCreds         string   `json:"sentinelCreds"`
 }

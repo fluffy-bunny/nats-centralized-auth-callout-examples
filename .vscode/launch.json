@@ -156,6 +156,19 @@
                 "--callout.creds", "${workspaceFolder}/herb/herb.auth.creds",
 
              ]    
+        },{
+            "name": "callout/services/operator_mode_url_resolver",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/cmd/cli",
+            "console": "externalTerminal",
+            "args": [ 
+                "callout", "services","operator_mode_url_resolver",
+                "--users.file", "${workspaceFolder}/configs/users.json",
+                "--callout.creds", "${workspaceFolder}/configs/test/service.creds",
+                "--callout.issuer.nk", "${workspaceFolder}/configs/test/C.nk",
+              ]    
         }, {
             "name": "callout/services/operator_mode_dynamic_accounts-test",
             "type": "go",
@@ -199,6 +212,20 @@
                 "--sentinel.creds", "${workspaceFolder}/configs/test/sentinel.creds",
  
 
+             ]    
+        },
+        {
+            "name": "callout/services/url_resolver",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/cmd/cli",
+            "console": "externalTerminal",
+            "args": [ 
+                "callout", "services","url_resolver",
+                "--operator.nk", "${workspaceFolder}/configs/test/operator.nk",
+                "--auth.account.jwt", "${workspaceFolder}/configs/test/auth.account.jwt",
+                "--system.account.jwt", "${workspaceFolder}/configs/test/system.account.jwt",
              ]    
         }
 

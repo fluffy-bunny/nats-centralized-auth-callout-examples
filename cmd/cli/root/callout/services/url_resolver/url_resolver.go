@@ -56,7 +56,7 @@ func (s *AccountManager) GetAccounts() map[string]*callout_shared.CreateSimpleAc
 	//--~--~--~--~--~-- BARBED WIRE --~--~--~--~--~--~--
 	return s.accountFriendlyNameToAccountInfo
 }
-func (s *AccountManager) AddAuthAccount(ctx context.Context, jwt string) error {
+func (s *AccountManager) AddAccountByJWT(ctx context.Context, name string, jwt string) error {
 	log := zerolog.Ctx(ctx).With().Str("func", "AddAuthAccount").Logger()
 	//--~--~--~--~--~-- BARBED WIRE --~--~--~--~--~--~--
 	s.accountMutex.Lock()
@@ -68,14 +68,15 @@ func (s *AccountManager) AddAuthAccount(ctx context.Context, jwt string) error {
 		return err
 	}
 	authAudience := subI.(string)
-	s.accountFriendlyNameToAccountInfo["auth"] = &callout_shared.CreateSimpleAccountResponse{
+	account := &callout_shared.CreateSimpleAccountResponse{
 		CommonAccountData: callout_shared.CommonAccountData{
-			Name:     "auth",
+			Name:     name,
 			JWT:      string(jwt),
 			Audience: authAudience,
 		},
 	}
-	s.accountPubKeyToAccountInfo[authAudience] = s.accountFriendlyNameToAccountInfo["AUTH"]
+	s.accountFriendlyNameToAccountInfo["auth"] = account
+	s.accountPubKeyToAccountInfo[authAudience] = account
 	return nil
 }
 func (s *AccountManager) GetAccountById(ctx context.Context, id string) (*callout_shared.CreateSimpleAccountResponse, error) {
@@ -133,14 +134,18 @@ func Init(parentCmd *cobra.Command) {
 			if err != nil {
 				return err
 			}
-
+			systemAccountJWT, err := os.ReadFile(appInputs.SystemAccountJWTFile)
+			if err != nil {
+				return err
+			}
 			okp, err := loadAndParseKeys(appInputs.OperatorNKeyFile, 'O')
 			if err != nil {
 				log.Error().Err(err).Msg("error loading operator key")
 				return err
 			}
 			accountManager := NewAccountManager(okp)
-			accountManager.AddAuthAccount(ctx, string(authAccountJWT))
+			accountManager.AddAccountByJWT(ctx, "auth", string(authAccountJWT))
+			accountManager.AddAccountByJWT(ctx, "system", string(systemAccountJWT))
 
 			for _, wa := range wellknownAccounts {
 				accountManager.GetOrCreateAccountByFriendlyName(ctx, wa)
@@ -148,6 +153,22 @@ func Init(parentCmd *cobra.Command) {
 
 			e := echo.New()
 
+			e.GET("/jwt/v1/accounts/id/", func(c echo.Context) error {
+				r := c.Request()
+				w := c.Response()
+				ctx := r.Context()
+
+				// full path with query string
+				path := r.URL.Path + "?" + r.URL.RawQuery
+				log := zerolog.Ctx(ctx).With().Str("command", path).Logger()
+				log.Info().Send()
+
+				w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+				w.Header().Set("Pragma", "no-cache")
+				w.Header().Set("Expires", "0")
+				w.WriteHeader(http.StatusOK)
+				return nil
+			})
 			// Route to get account by ID
 			e.GET("/jwt/v1/accounts/id/:id", func(c echo.Context) error {
 				//--~--~--~--~--~--~-- BARBED WIRE --~--~--~--~--~--~--
@@ -155,6 +176,11 @@ func Init(parentCmd *cobra.Command) {
 				defer accountMutex.Unlock()
 				//--~--~--~--~--~--~-- BARBED WIRE --~--~--~--~--~--~--
 				id := c.Param("id")
+				r := c.Request()
+				// full path with query string
+				path := r.URL.Path + "?" + r.URL.RawQuery
+				log := zerolog.Ctx(ctx).With().Str("command", path).Logger()
+				log.Info().Send()
 
 				accountInfo, err := accountManager.GetAccountById(ctx, id)
 				if err != nil {
@@ -175,6 +201,14 @@ func Init(parentCmd *cobra.Command) {
 				accountMutex.Lock()
 				defer accountMutex.Unlock()
 				//--~--~--~--~--~--~-- BARBED WIRE --~--~--~--~--~--~--
+
+				r := c.Request()
+				// full path with query string
+				path := r.URL.Path + "?" + r.URL.RawQuery
+
+				log := zerolog.Ctx(ctx).With().Str("command", path).Logger()
+				log.Info().Send()
+
 				name := c.Param("name")
 				name = strings.ToLower(name)
 				info, err := accountManager.GetOrCreateAccountByFriendlyName(ctx, name)
@@ -187,11 +221,11 @@ func Init(parentCmd *cobra.Command) {
 					return c.String(http.StatusNotFound, "Account ID not found")
 				}
 				// return just the id
-				return c.String(http.StatusOK, id)
+				return c.JSON(http.StatusOK, info)
 			})
 
 			// Route to get all accounts
-			e.GET("/jwt/v1/accounts", func(c echo.Context) error {
+			e.GET("/jwt/v1/accounts/list", func(c echo.Context) error {
 				return c.JSON(http.StatusOK, accountManager.GetAccounts())
 			})
 
@@ -217,6 +251,11 @@ func Init(parentCmd *cobra.Command) {
 	flagName = "auth.account.jwt"
 	defaultS = "auth.account.jwt"
 	command.Flags().StringVar(&appInputs.AuthAccountJWTFile, flagName, defaultS, fmt.Sprintf("[required] i.e. --%s=%s", flagName, defaultS))
+	viper.BindPFlag(flagName, command.PersistentFlags().Lookup(flagName))
+
+	flagName = "system.account.jwt"
+	defaultS = "system.account.jwt"
+	command.Flags().StringVar(&appInputs.SystemAccountJWTFile, flagName, defaultS, fmt.Sprintf("[required] i.e. --%s=%s", flagName, defaultS))
 	viper.BindPFlag(flagName, command.PersistentFlags().Lookup(flagName))
 
 	parentCmd.AddCommand(command)

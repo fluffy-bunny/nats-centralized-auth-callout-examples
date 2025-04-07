@@ -44,25 +44,14 @@ func CreateSimpleAccount(ctx context.Context, request *CreateSimpleAccountReques
 		log.Error().Err(err).Msg("failed to create account")
 		return nil, err
 	}
-
 	// extract the public key for the account
 	apk, err := akp.PublicKey()
 	if err != nil {
 		log.Error().Err(err).Msg("failed to get public key")
 		return nil, err
 	}
-	// create a signing key that we can use for issuing users
-	askp, err := nkeys.CreateAccount()
-	if err != nil {
-		log.Error().Err(err).Msg("failed to create account")
-		return nil, err
-	}
-	// extract the public key
-	aspk, err := askp.PublicKey()
-	if err != nil {
-		log.Error().Err(err).Msg("failed to get public key")
-		return nil, err
-	}
+	askp := akp
+
 	// create the claim for the account using the public key of the account
 	ac := jwt.NewAccountClaims(apk)
 	ac.Name = request.Name
@@ -71,7 +60,7 @@ func CreateSimpleAccount(ctx context.Context, request *CreateSimpleAccountReques
 	ac.Limits.JetStreamLimits.MemoryStorage = -1
 
 	// add the signing key (public) to the account
-	ac.SigningKeys.Add(aspk)
+	ac.SigningKeys.Add(apk)
 
 	// now we could encode an issue the account using the operator
 	// key that we generated above, but this will illustrate that
