@@ -14,7 +14,10 @@ import (
 	shared "natsauth/internal/shared"
 
 	callout_shared "natsauth/cmd/cli/root/callout/shared"
+	contracts_nats "natsauth/internal/contracts/nats"
+	services_account_store_inmemory "natsauth/internal/services/account_store/inmemory"
 
+	di "github.com/fluffy-bunny/fluffy-dozm-di"
 	status "github.com/gogo/status"
 	echo "github.com/labstack/echo/v4"
 	nkeys "github.com/nats-io/nkeys"
@@ -130,6 +133,8 @@ func Init(parentCmd *cobra.Command) {
 			printer.EnableColors = true
 			printer.PrintBold(cobra_utils.Bold, use)
 
+			builder := di.Builder()
+
 			authAccountJWT, err := os.ReadFile(appInputs.AuthAccountJWTFile)
 			if err != nil {
 				return err
@@ -143,11 +148,45 @@ func Init(parentCmd *cobra.Command) {
 				log.Error().Err(err).Msg("error loading operator key")
 				return err
 			}
+			seed, _ := okp.Seed()
+			di.AddInstance[*contracts_nats.AccountStoreConfig](builder,
+				&contracts_nats.AccountStoreConfig{
+					SystemAccountJWT: string(systemAccountJWT),
+					AuthAccountJWT:   string(authAccountJWT),
+					OperatorNKey:     seed,
+				})
+			services_account_store_inmemory.AddSingletoAccountStore(builder)
+			ctn := builder.Build()
+			accountStore, err := di.TryGet[contracts_nats.IAccountStore](ctn)
+			if err != nil {
+				log.Error().Err(err).Msg("failed to get account store")
+				return err
+			}
+
+			accountStore.AddAccountByJWT(ctx,
+				&contracts_nats.AddAccountByJWTRequest{
+					Name: "auth",
+					JWT:  string(authAccountJWT),
+				})
+			accountStore.AddAccountByJWT(ctx,
+				&contracts_nats.AddAccountByJWTRequest{
+					Name: "system",
+					JWT:  string(systemAccountJWT),
+				})
+
 			accountManager := NewAccountManager(okp)
 			accountManager.AddAccountByJWT(ctx, "auth", string(authAccountJWT))
 			accountManager.AddAccountByJWT(ctx, "system", string(systemAccountJWT))
 
 			for _, wa := range wellknownAccounts {
+				_, err = accountStore.GetAccountByName(ctx,
+					&contracts_nats.GetAccountByNameRequest{
+						Name: wa,
+					})
+				if err != nil {
+					log.Error().Err(err).Msgf("failed to get account by name: %s", wa)
+					return err
+				}
 				accountManager.GetOrCreateAccountByFriendlyName(ctx, wa)
 			}
 
@@ -182,10 +221,15 @@ func Init(parentCmd *cobra.Command) {
 				log := zerolog.Ctx(ctx).With().Str("command", path).Logger()
 				log.Info().Send()
 
-				accountInfo, err := accountManager.GetAccountById(ctx, id)
+				//	accountInfo, err := accountManager.GetAccountById(ctx, id)
+				getAccountByPublicKeyResponse, err := accountStore.GetAccountByPublicKey(ctx,
+					&contracts_nats.GetAccountByPublicKeyRequest{
+						PublicKey: id,
+					})
 				if err != nil {
 					return c.String(http.StatusInternalServerError, "Error creating account: "+err.Error())
 				}
+				accountInfo := getAccountByPublicKeyResponse.AccountInfo
 				theJWT := accountInfo.JWT
 				if theJWT == "" {
 					return c.String(http.StatusNotFound, "Account JWT not found")
@@ -211,15 +255,18 @@ func Init(parentCmd *cobra.Command) {
 
 				name := c.Param("name")
 				name = strings.ToLower(name)
-				info, err := accountManager.GetOrCreateAccountByFriendlyName(ctx, name)
+
+				getAccountByNameResponse, err := accountStore.GetAccountByName(ctx,
+					&contracts_nats.GetAccountByNameRequest{
+						Name: name,
+					})
+
+				//	info, err := accountManager.GetOrCreateAccountByFriendlyName(ctx, name)
 				if err != nil {
 					return c.String(http.StatusInternalServerError, "Error creating account: "+err.Error())
 				}
+				info := getAccountByNameResponse.AccountInfo
 
-				id := info.Audience
-				if id == "" {
-					return c.String(http.StatusNotFound, "Account ID not found")
-				}
 				// return just the id
 				return c.JSON(http.StatusOK, info)
 			})
