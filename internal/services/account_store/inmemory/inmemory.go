@@ -94,11 +94,11 @@ func (s *service) GetAccountByName(ctx context.Context, request *contracts_nats.
 	defer s.lock.Unlock()
 	//--~--~--~--~-- BARBED WIRE --~--~--~--~--//
 	log := zerolog.Ctx(ctx).With().Interface("request", request).Logger()
-
+	var err error
 	accountInfo, ok := s.accountFriendlyNameToAccountInfo[request.Name]
 	if !ok {
 
-		accountInfo, err := CreateSimpleAccount(ctx,
+		accountInfo, err = CreateSimpleAccount(ctx,
 			&contracts_nats.CreateSimpleAccountRequest{
 				Name:          request.Name,
 				IssuerKeyPair: s.issuerKeyPair,
@@ -110,7 +110,6 @@ func (s *service) GetAccountByName(ctx context.Context, request *contracts_nats.
 
 		s.accountFriendlyNameToAccountInfo[request.Name] = accountInfo
 		s.accountPubKeyToAccountInfo[accountInfo.KeyPair.PublicKey] = accountInfo
-
 	}
 	log.Info().Interface("account_info", accountInfo).Msg("account found")
 
@@ -131,6 +130,22 @@ func (s *service) GetAccountByPublicKey(ctx context.Context, request *contracts_
 		log.Error().Err(fmt.Errorf("account not found")).Msg("error getting account by public key")
 		return nil, fmt.Errorf("account not found")
 	}
+	switch accountInfo.Name {
+	case "system", "auth":
+		return &contracts_nats.GetAccountByPublicKeyResponse{
+			AccountInfo: accountInfo,
+		}, nil
+	}
+	refreshJWTResponse, err := s.RefreshJWT(ctx, &contracts_nats.RefreshJWTRequest{
+		IssuerKeyPair: s.issuerKeyPair,
+		AccountInfo:   accountInfo,
+	})
+	if err != nil {
+		log.Error().Err(err).Msg("error refreshing jwt")
+		return nil, err
+	}
+	accountInfo = refreshJWTResponse.AccountInfo
+
 	log.Info().Interface("account_info", accountInfo).Msg("account found")
 	return &contracts_nats.GetAccountByPublicKeyResponse{
 		AccountInfo: accountInfo,
@@ -151,6 +166,26 @@ func (s *service) GetAccounts(ctx context.Context) (*contracts_nats.GetAccountsR
 	}
 	return &contracts_nats.GetAccountsResponse{
 		Accounts: accounts,
+	}, nil
+}
+func (s *service) RefreshJWT(ctx context.Context, request *contracts_nats.RefreshJWTRequest) (*contracts_nats.RefreshJWTResponse, error) {
+
+	log := zerolog.Ctx(ctx).With().Interface("request", request).Logger()
+
+	request.AccountInfo.AccountClaims.Expires = time.Now().Add(time.Minute * 2).Unix()
+
+	// now we could encode an issue the account using the operator
+	// key that we generated above, but this will illustrate that
+	// the account could be self-signed, and given to the operator
+	// who can then re-sign it
+	accountJWT, err := request.AccountInfo.AccountClaims.Encode(request.IssuerKeyPair)
+	if err != nil {
+		log.Error().Err(err).Msg("failed to encode account")
+		return nil, err
+	}
+	request.AccountInfo.JWT = accountJWT
+	return &contracts_nats.RefreshJWTResponse{
+		AccountInfo: request.AccountInfo,
 	}, nil
 }
 
@@ -230,8 +265,10 @@ func CreateSimpleAccount(ctx context.Context, request *contracts_nats.CreateSimp
 
 	resp := &contracts_nats.CreateSimpleAccountResponse{
 		CommonAccountData: contracts_nats.CommonAccountData{
-			Name: request.Name,
-			JWT:  accountJWT,
+			Name:          request.Name,
+			JWT:           accountJWT,
+			AccountClaims: ac,
+			Audience:      apk,
 		},
 	}
 	resp.KeyPair.PublicKey, _ = akp.PublicKey()
