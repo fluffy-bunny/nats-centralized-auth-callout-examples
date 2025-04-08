@@ -16,7 +16,7 @@ import (
 
 	shared "natsauth/internal/shared"
 
-	callout_shared "natsauth/cmd/cli/root/callout/shared"
+	contracts_nats "natsauth/internal/contracts/nats"
 
 	fluffycore_utils "github.com/fluffy-bunny/fluffycore/utils"
 	status "github.com/gogo/status"
@@ -81,7 +81,7 @@ func Init(parentCmd *cobra.Command) {
 
 			// this creates a new account named as specified returning
 			// the key used to sign users
-			getOrCreateAccount := func(name string) (*callout_shared.CreateSimpleAccountResponse, error) {
+			getOrCreateAccount := func(name string) (*contracts_nats.CreateSimpleAccountResponse, error) {
 
 				var err error
 
@@ -96,11 +96,12 @@ func Init(parentCmd *cobra.Command) {
 					fmt.Println("Error:", err)
 					return nil, err
 				}
-				data := &callout_shared.CreateSimpleAccountResponse{}
+				data := &contracts_nats.CreateSimpleAccountResponse{}
 				err = json.Unmarshal(body, data)
 				if err != nil {
 					return nil, err
 				}
+				return data, nil
 				return data, nil
 			}
 			// load the callout key
@@ -169,7 +170,7 @@ func Init(parentCmd *cobra.Command) {
 
 				// perhaps add an expiration to the JWT
 				uc.Expires = time.Now().Unix() + 90
-				kp, err := nkeys.FromSeed(createSimpleAccountResponse.SignerKeyPair.Seed)
+				kp, err := nkeys.FromSeed(createSimpleAccountResponse.KeyPair.Seed)
 				if err != nil {
 					return "", err
 				}

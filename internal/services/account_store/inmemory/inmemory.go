@@ -21,8 +21,8 @@ type (
 	service struct {
 		lock                             sync.Mutex
 		config                           *contracts_nats.AccountStoreConfig
-		accountFriendlyNameToAccountInfo map[string]*contracts_nats.AccountInfo
-		accountPubKeyToAccountInfo       map[string]*contracts_nats.AccountInfo
+		accountFriendlyNameToAccountInfo map[string]*contracts_nats.CreateSimpleAccountResponse
+		accountPubKeyToAccountInfo       map[string]*contracts_nats.CreateSimpleAccountResponse
 		issuerKeyPair                    nkeys.KeyPair
 	}
 )
@@ -38,8 +38,10 @@ func (s *service) Ctor(config *contracts_nats.AccountStoreConfig) (contracts_nat
 	}
 
 	return &service{
-		config:        config,
-		issuerKeyPair: kp,
+		config:                           config,
+		issuerKeyPair:                    kp,
+		accountFriendlyNameToAccountInfo: map[string]*contracts_nats.CreateSimpleAccountResponse{},
+		accountPubKeyToAccountInfo:       map[string]*contracts_nats.CreateSimpleAccountResponse{},
 	}, nil
 }
 func AddSingletoAccountStore(builder di.ContainerBuilder) {
@@ -72,10 +74,12 @@ func (s *service) AddAccountByJWT(ctx context.Context, request *contracts_nats.A
 			AccountInfo: accountInfo,
 		}, nil
 	}
-	accountInfo = &contracts_nats.AccountInfo{
-		Name:       request.Name,
-		JWT:        request.JWT,
-		PublicKeys: []string{subject},
+	accountInfo = &contracts_nats.CreateSimpleAccountResponse{
+		CommonAccountData: contracts_nats.CommonAccountData{
+			Name:     request.Name,
+			Audience: subject,
+			JWT:      request.JWT,
+		},
 	}
 	s.accountFriendlyNameToAccountInfo[request.Name] = accountInfo
 	s.accountPubKeyToAccountInfo[subject] = accountInfo
@@ -89,12 +93,12 @@ func (s *service) GetAccountByName(ctx context.Context, request *contracts_nats.
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	//--~--~--~--~-- BARBED WIRE --~--~--~--~--//
-	log := zerolog.Ctx(ctx).With().Logger()
+	log := zerolog.Ctx(ctx).With().Interface("request", request).Logger()
 
 	accountInfo, ok := s.accountFriendlyNameToAccountInfo[request.Name]
 	if !ok {
 
-		createSimpleAccountResponse, err := CreateSimpleAccount(ctx,
+		accountInfo, err := CreateSimpleAccount(ctx,
 			&contracts_nats.CreateSimpleAccountRequest{
 				Name:          request.Name,
 				IssuerKeyPair: s.issuerKeyPair,
@@ -103,19 +107,13 @@ func (s *service) GetAccountByName(ctx context.Context, request *contracts_nats.
 			log.Error().Err(err).Msg("error creating account")
 			return nil, err
 		}
-		accountInfo = &contracts_nats.AccountInfo{
-			Name: request.Name,
-			JWT:  createSimpleAccountResponse.JWT,
-			PublicKeys: []string{
-				createSimpleAccountResponse.KeyPair.PublicKey,
-				createSimpleAccountResponse.SignerKeyPair.PublicKey,
-			},
-		}
+
 		s.accountFriendlyNameToAccountInfo[request.Name] = accountInfo
-		s.accountPubKeyToAccountInfo[createSimpleAccountResponse.KeyPair.PublicKey] = accountInfo
-		s.accountPubKeyToAccountInfo[createSimpleAccountResponse.SignerKeyPair.PublicKey] = accountInfo
+		s.accountPubKeyToAccountInfo[accountInfo.KeyPair.PublicKey] = accountInfo
 
 	}
+	log.Info().Interface("account_info", accountInfo).Msg("account found")
+
 	return &contracts_nats.GetAccountByNameResponse{
 		AccountInfo: accountInfo,
 	}, nil
@@ -126,13 +124,14 @@ func (s *service) GetAccountByPublicKey(ctx context.Context, request *contracts_
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	//--~--~--~--~-- BARBED WIRE --~--~--~--~--//
-	log := zerolog.Ctx(ctx).With().Logger()
+	log := zerolog.Ctx(ctx).With().Interface("request", request).Logger()
 
 	accountInfo, ok := s.accountPubKeyToAccountInfo[request.PublicKey]
 	if !ok {
 		log.Error().Err(fmt.Errorf("account not found")).Msg("error getting account by public key")
 		return nil, fmt.Errorf("account not found")
 	}
+	log.Info().Interface("account_info", accountInfo).Msg("account found")
 	return &contracts_nats.GetAccountByPublicKeyResponse{
 		AccountInfo: accountInfo,
 	}, nil
@@ -145,7 +144,7 @@ func (s *service) GetAccounts(ctx context.Context) (*contracts_nats.GetAccountsR
 	//--~--~--~--~-- BARBED WIRE --~--~--~--~--//
 
 	log := zerolog.Ctx(ctx).With().Logger()
-	accounts := []*contracts_nats.AccountInfo{}
+	accounts := []*contracts_nats.CreateSimpleAccountResponse{}
 	for k, v := range s.accountFriendlyNameToAccountInfo {
 		log.Info().Msgf("account: %s", k)
 		accounts = append(accounts, v)
@@ -194,18 +193,19 @@ func CreateSimpleAccount(ctx context.Context, request *contracts_nats.CreateSimp
 		log.Error().Err(err).Msg("failed to get public key")
 		return nil, err
 	}
-
-	askp, err := nkeys.CreateAccount()
-	if err != nil {
-		log.Error().Err(err).Msg("failed to create account")
-		return nil, err
-	}
-	// extract the public key for the account
-	aspk, err := askp.PublicKey()
-	if err != nil {
-		log.Error().Err(err).Msg("failed to get public key")
-		return nil, err
-	}
+	/*
+		askp, err := nkeys.CreateAccount()
+		if err != nil {
+			log.Error().Err(err).Msg("failed to create account")
+			return nil, err
+		}
+		// extract the public key for the account
+		aspk, err := askp.PublicKey()
+		if err != nil {
+			log.Error().Err(err).Msg("failed to get public key")
+			return nil, err
+		}
+	*/
 
 	// create the claim for the account using the public key of the account
 	ac := jwt.NewAccountClaims(apk)
@@ -216,7 +216,7 @@ func CreateSimpleAccount(ctx context.Context, request *contracts_nats.CreateSimp
 
 	// add the signing key (public) to the account
 	ac.SigningKeys.Add(apk)
-	ac.SigningKeys.Add(aspk)
+	//ac.SigningKeys.Add(aspk)
 
 	// now we could encode an issue the account using the operator
 	// key that we generated above, but this will illustrate that
@@ -237,9 +237,7 @@ func CreateSimpleAccount(ctx context.Context, request *contracts_nats.CreateSimp
 	resp.KeyPair.PublicKey, _ = akp.PublicKey()
 	resp.KeyPair.PrivateKey, _ = akp.PrivateKey()
 	resp.KeyPair.Seed, _ = akp.Seed()
-	resp.SignerKeyPair.PublicKey, _ = askp.PublicKey()
-	resp.SignerKeyPair.PrivateKey, _ = askp.PrivateKey()
-	resp.SignerKeyPair.Seed, _ = askp.Seed()
+
 	resp.Audience = resp.KeyPair.PublicKey
 	return resp, nil
 }

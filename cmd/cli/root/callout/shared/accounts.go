@@ -4,39 +4,14 @@ import (
 	"context"
 	"time"
 
+	contracts_nats "natsauth/internal/contracts/nats"
+
 	jwt "github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
 	"github.com/rs/zerolog"
 )
 
-type (
-	CreateSimpleAccountRequest struct {
-		Name          string        `json:"name"`
-		IssuerKeyPair nkeys.KeyPair `json:"issuer_key_pair"`
-	}
-	UpdateSimpleAccountRequest struct {
-		Original      *CreateSimpleAccountResponse `json:"original"`
-		IssuerKeyPair nkeys.KeyPair                `json:"issuer_key_pair"`
-	}
-	RawKeyPair struct {
-		PublicKey  string `json:"public_key"`
-		PrivateKey []byte `json:"private_key"`
-		Seed       []byte `json:"seed"`
-	}
-	CommonAccountData struct {
-		Name          string     `json:"name"`
-		KeyPair       RawKeyPair `json:"key_pair"`
-		SignerKeyPair RawKeyPair `json:"signer_key_pair"`
-		JWT           string     `json:"jwt"`
-		// Audience is either a well known name that is in the static config like "SYS", or a public key id
-		Audience string `json:"audience"`
-	}
-	CreateSimpleAccountResponse struct {
-		CommonAccountData
-	}
-)
-
-func CreateSimpleAccount(ctx context.Context, request *CreateSimpleAccountRequest) (*CreateSimpleAccountResponse, error) {
+func CreateSimpleAccount(ctx context.Context, request *contracts_nats.CreateSimpleAccountRequest) (*contracts_nats.CreateSimpleAccountResponse, error) {
 	log := zerolog.Ctx(ctx).With().Str("func", "CreateSimpleAccount").Logger()
 	// create an account keypair
 	akp, err := nkeys.CreateAccount()
@@ -50,7 +25,6 @@ func CreateSimpleAccount(ctx context.Context, request *CreateSimpleAccountReques
 		log.Error().Err(err).Msg("failed to get public key")
 		return nil, err
 	}
-	askp := akp
 
 	// create the claim for the account using the public key of the account
 	ac := jwt.NewAccountClaims(apk)
@@ -72,8 +46,8 @@ func CreateSimpleAccount(ctx context.Context, request *CreateSimpleAccountReques
 		return nil, err
 	}
 
-	resp := &CreateSimpleAccountResponse{
-		CommonAccountData: CommonAccountData{
+	resp := &contracts_nats.CreateSimpleAccountResponse{
+		CommonAccountData: contracts_nats.CommonAccountData{
 			Name: request.Name,
 			JWT:  accountJWT,
 		},
@@ -81,9 +55,7 @@ func CreateSimpleAccount(ctx context.Context, request *CreateSimpleAccountReques
 	resp.KeyPair.PublicKey, _ = akp.PublicKey()
 	resp.KeyPair.PrivateKey, _ = akp.PrivateKey()
 	resp.KeyPair.Seed, _ = akp.Seed()
-	resp.SignerKeyPair.PublicKey, _ = askp.PublicKey()
-	resp.SignerKeyPair.PrivateKey, _ = askp.PrivateKey()
-	resp.SignerKeyPair.Seed, _ = askp.Seed()
+
 	resp.Audience = resp.KeyPair.PublicKey
 	return resp, nil
 }

@@ -2,7 +2,6 @@ package url_resolver
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	cobra_utils "natsauth/internal/cobra_utils"
@@ -13,18 +12,15 @@ import (
 
 	shared "natsauth/internal/shared"
 
-	callout_shared "natsauth/cmd/cli/root/callout/shared"
 	contracts_nats "natsauth/internal/contracts/nats"
 	services_account_store_inmemory "natsauth/internal/services/account_store/inmemory"
 
 	di "github.com/fluffy-bunny/fluffy-dozm-di"
-	status "github.com/gogo/status"
 	echo "github.com/labstack/echo/v4"
 	nkeys "github.com/nats-io/nkeys"
 	zerolog "github.com/rs/zerolog"
 	cobra "github.com/spf13/cobra"
 	viper "github.com/spf13/viper"
-	codes "google.golang.org/grpc/codes"
 )
 
 const use = "url_resolver"
@@ -34,88 +30,6 @@ var (
 	accountMutex = sync.Mutex{}
 	port         = 4299
 )
-
-// will be in a persistent store
-type AccountManager struct {
-	accountMutex                     sync.Mutex
-	IssuerKeyPair                    nkeys.KeyPair
-	accountFriendlyNameToAccountInfo map[string]*callout_shared.CreateSimpleAccountResponse
-	accountPubKeyToAccountInfo       map[string]*callout_shared.CreateSimpleAccountResponse
-}
-
-func NewAccountManager(IssuerKeyPair nkeys.KeyPair) *AccountManager {
-	am := &AccountManager{
-		IssuerKeyPair:                    IssuerKeyPair,
-		accountFriendlyNameToAccountInfo: make(map[string]*callout_shared.CreateSimpleAccountResponse),
-		accountPubKeyToAccountInfo:       make(map[string]*callout_shared.CreateSimpleAccountResponse),
-	}
-
-	return am
-}
-func (s *AccountManager) GetAccounts() map[string]*callout_shared.CreateSimpleAccountResponse {
-	//--~--~--~--~--~-- BARBED WIRE --~--~--~--~--~--~--
-	s.accountMutex.Lock()
-	defer s.accountMutex.Unlock()
-	//--~--~--~--~--~-- BARBED WIRE --~--~--~--~--~--~--
-	return s.accountFriendlyNameToAccountInfo
-}
-func (s *AccountManager) AddAccountByJWT(ctx context.Context, name string, jwt string) error {
-	log := zerolog.Ctx(ctx).With().Str("func", "AddAuthAccount").Logger()
-	//--~--~--~--~--~-- BARBED WIRE --~--~--~--~--~--~--
-	s.accountMutex.Lock()
-	defer s.accountMutex.Unlock()
-	//--~--~--~--~--~-- BARBED WIRE --~--~--~--~--~--~--
-	subI, err := shared.ExtractClaimFromJWTNoValidation(jwt, "sub")
-	if err != nil {
-		log.Error().Err(err).Msg("error extracting sub from jwt")
-		return err
-	}
-	authAudience := subI.(string)
-	account := &callout_shared.CreateSimpleAccountResponse{
-		CommonAccountData: callout_shared.CommonAccountData{
-			Name:     name,
-			JWT:      string(jwt),
-			Audience: authAudience,
-		},
-	}
-	s.accountFriendlyNameToAccountInfo["auth"] = account
-	s.accountPubKeyToAccountInfo[authAudience] = account
-	return nil
-}
-func (s *AccountManager) GetAccountById(ctx context.Context, id string) (*callout_shared.CreateSimpleAccountResponse, error) {
-	//--~--~--~--~--~-- BARBED WIRE --~--~--~--~--~--~--
-	s.accountMutex.Lock()
-	defer s.accountMutex.Unlock()
-	//--~--~--~--~--~-- BARBED WIRE --~--~--~--~--~--~--
-	createSimpleAccountResponse, ok := s.accountPubKeyToAccountInfo[id]
-	if ok {
-		return createSimpleAccountResponse, nil
-	}
-	return nil, status.Error(codes.NotFound, "account not found")
-}
-func (s *AccountManager) GetOrCreateAccountByFriendlyName(ctx context.Context, name string) (*callout_shared.CreateSimpleAccountResponse, error) {
-	//--~--~--~--~--~-- BARBED WIRE --~--~--~--~--~--~--
-	s.accountMutex.Lock()
-	defer s.accountMutex.Unlock()
-	//--~--~--~--~--~-- BARBED WIRE --~--~--~--~--~--~--
-	createSimpleAccountResponse, ok := s.accountFriendlyNameToAccountInfo[name]
-	if ok {
-		return createSimpleAccountResponse, nil
-	}
-	var err error
-	createSimpleAccountResponse, err = callout_shared.CreateSimpleAccount(ctx,
-		&callout_shared.CreateSimpleAccountRequest{
-			Name:          name,
-			IssuerKeyPair: s.IssuerKeyPair,
-		})
-	if err != nil {
-		return nil, err
-	}
-	s.accountFriendlyNameToAccountInfo[name] = createSimpleAccountResponse
-	s.accountPubKeyToAccountInfo[createSimpleAccountResponse.Audience] = createSimpleAccountResponse
-
-	return createSimpleAccountResponse, err
-}
 
 var wellknownAccounts = []string{"svc", "edge"}
 
@@ -174,10 +88,6 @@ func Init(parentCmd *cobra.Command) {
 					JWT:  string(systemAccountJWT),
 				})
 
-			accountManager := NewAccountManager(okp)
-			accountManager.AddAccountByJWT(ctx, "auth", string(authAccountJWT))
-			accountManager.AddAccountByJWT(ctx, "system", string(systemAccountJWT))
-
 			for _, wa := range wellknownAccounts {
 				_, err = accountStore.GetAccountByName(ctx,
 					&contracts_nats.GetAccountByNameRequest{
@@ -187,7 +97,7 @@ func Init(parentCmd *cobra.Command) {
 					log.Error().Err(err).Msgf("failed to get account by name: %s", wa)
 					return err
 				}
-				accountManager.GetOrCreateAccountByFriendlyName(ctx, wa)
+
 			}
 
 			e := echo.New()
@@ -273,7 +183,12 @@ func Init(parentCmd *cobra.Command) {
 
 			// Route to get all accounts
 			e.GET("/jwt/v1/accounts/list", func(c echo.Context) error {
-				return c.JSON(http.StatusOK, accountManager.GetAccounts())
+
+				accountResonse, err := accountStore.GetAccounts(ctx)
+				if err != nil {
+					return c.String(http.StatusInternalServerError, "Error creating account: "+err.Error())
+				}
+				return c.JSON(http.StatusOK, accountResonse)
 			})
 
 			address := fmt.Sprintf(":%d", port)

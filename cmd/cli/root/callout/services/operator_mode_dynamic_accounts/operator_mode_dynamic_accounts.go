@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	contracts_nats "natsauth/internal/contracts/nats"
 	shared "natsauth/internal/shared"
 
 	callout_shared "natsauth/cmd/cli/root/callout/shared"
@@ -45,8 +46,8 @@ type (
 )
 
 // will be in a persistent store
-var accountFriendlyNameToAccountInfo = make(map[string]*callout_shared.CreateSimpleAccountResponse)
-var accountPubKeyToAccountInfo = make(map[string]*callout_shared.CreateSimpleAccountResponse)
+var accountFriendlyNameToAccountInfo = make(map[string]*contracts_nats.CreateSimpleAccountResponse)
+var accountPubKeyToAccountInfo = make(map[string]*contracts_nats.CreateSimpleAccountResponse)
 
 // Init command
 func Init(parentCmd *cobra.Command) {
@@ -89,8 +90,8 @@ func Init(parentCmd *cobra.Command) {
 				return err
 			}
 			authAudience := subI.(string)
-			accountFriendlyNameToAccountInfo["AUTH"] = &callout_shared.CreateSimpleAccountResponse{
-				CommonAccountData: callout_shared.CommonAccountData{
+			accountFriendlyNameToAccountInfo["AUTH"] = &contracts_nats.CreateSimpleAccountResponse{
+				CommonAccountData: contracts_nats.CommonAccountData{
 					Name:     "AUTH",
 					JWT:      string(authAccountJWT),
 					Audience: authAudience,
@@ -140,7 +141,7 @@ func Init(parentCmd *cobra.Command) {
 
 			// this creates a new account named as specified returning
 			// the key used to sign users
-			getOrCreateAccount := func(name string) (*callout_shared.CreateSimpleAccountResponse, error) {
+			getOrCreateAccount := func(name string) (*contracts_nats.CreateSimpleAccountResponse, error) {
 				//--~--~--~--~--~-- BARBED WIRE --~--~--~--~--~--~--
 				accountMutex.Lock()
 				defer accountMutex.Unlock()
@@ -151,7 +152,7 @@ func Init(parentCmd *cobra.Command) {
 				}
 				var err error
 				createSimpleAccountResponse, err = callout_shared.CreateSimpleAccount(ctx,
-					&callout_shared.CreateSimpleAccountRequest{
+					&contracts_nats.CreateSimpleAccountRequest{
 						Name:          name,
 						IssuerKeyPair: okp,
 					})

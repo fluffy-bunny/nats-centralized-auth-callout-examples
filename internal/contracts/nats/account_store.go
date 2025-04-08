@@ -12,33 +12,29 @@ type (
 		SystemAccountJWT string `json:"-"`
 		AuthAccountJWT   string `json:"-"`
 	}
-	AccountInfo struct {
-		Name       string   `json:"name"`
-		JWT        string   `json:"jwt"`
-		PublicKeys []string `json:"public_keys"`
-	}
+
 	GetAccountByNameRequest struct {
 		Name string `json:"name"`
 	}
 	GetAccountByNameResponse struct {
-		AccountInfo *AccountInfo `json:"account_info"`
+		AccountInfo *CreateSimpleAccountResponse `json:"account_info"`
 	}
 	GetAccountByPublicKeyRequest struct {
 		PublicKey string `json:"public_key"`
 	}
 	GetAccountByPublicKeyResponse struct {
-		AccountInfo *AccountInfo `json:"account_info"`
+		AccountInfo *CreateSimpleAccountResponse `json:"account_info"`
 	}
 	AddAccountByJWTRequest struct {
 		Name string `json:"name"`
 		JWT  string `json:"jwt"`
 	}
 	AddAccountByJWTResponse struct {
-		AccountInfo *AccountInfo `json:"account_info"`
+		AccountInfo *CreateSimpleAccountResponse `json:"account_info"`
 	}
 
 	GetAccountsResponse struct {
-		Accounts []*AccountInfo `json:"accounts"`
+		Accounts []*CreateSimpleAccountResponse `json:"accounts"`
 	}
 
 	CreateSimpleAccountRequest struct {
@@ -55,10 +51,9 @@ type (
 		Seed       []byte `json:"seed"`
 	}
 	CommonAccountData struct {
-		Name          string     `json:"name"`
-		KeyPair       RawKeyPair `json:"key_pair"`
-		SignerKeyPair RawKeyPair `json:"signer_key_pair"`
-		JWT           string     `json:"jwt"`
+		Name    string     `json:"name"`
+		KeyPair RawKeyPair `json:"key_pair"`
+		JWT     string     `json:"jwt"`
 		// Audience is either a well known name that is in the static config like "SYS", or a public key id
 		Audience string `json:"audience"`
 	}
